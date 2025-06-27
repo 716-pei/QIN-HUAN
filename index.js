@@ -126,7 +126,7 @@ const client = new Client({
   ]
 },
       {
-  exact: false,
+  exact: true,
   triggers: ["秦先生"],
   replies: [
     "「怎麼突然這麼乖，叫我秦先生，是想求什麼？」",
@@ -137,7 +137,7 @@ const client = new Client({
   ]
 },
       {
-  exact: false,
+  exact: true,
   triggers: ["煥煥"],
   replies: [
     "「……你是故意的吧？叫這麼黏，是想我怎麼對你？」",
