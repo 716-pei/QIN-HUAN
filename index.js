@@ -367,7 +367,7 @@ client.on("messageCreate", async (message) => {
 
   const content = message.content.trim();
 
-  // Step 1：精準的「秦煥」才回覆哥哥那段
+  // Step 1：精準的「秦煥」才回覆秦煥那段
  for (const item of keywordReplies) {
     if (item.exact) {
       for (const trigger of item.triggers) {
