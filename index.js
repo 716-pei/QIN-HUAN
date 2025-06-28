@@ -434,7 +434,8 @@ client.on("messageDelete", (msg) => {
     msg.content &&
     typeof msg.content === "string" &&
     msg.content.includes("秦煥")
-  ) {
+  )
+  {
     const deletedReplies = [
       "「刪了？呵……你以為我會沒看到？那你太晚了。」",
       "「訊息收回的那一瞬間，我就記下你怕什麼了。」"
@@ -454,7 +455,8 @@ client.on("messageUpdate", (oldMsg, newMsg) => {
     oldMsg.content !== newMsg.content &&
     oldMsg.content.includes("秦煥") &&
     newMsg.content.includes("秦煥")
-  ) {
+  ) 
+  {
     const editedReplies = [
       "「改了就乾淨了？錯，一個字都逃不掉，我早就看穿你想說什麼。」",
       "「你編輯的不是字，是你試圖掩蓋的軟弱，對吧？」"
