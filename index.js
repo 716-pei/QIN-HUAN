@@ -20,8 +20,6 @@ const client = new Client({
     GatewayIntentBits.Guilds,
     GatewayIntentBits.GuildMessages,
     GatewayIntentBits.MessageContent,
-    GatewayIntentBits.MessageUpdate, // ✅ 偵測訊息編輯
-    GatewayIntentBits.MessageDelete  // ✅ 偵測訊息刪除
   ],
 });
 
