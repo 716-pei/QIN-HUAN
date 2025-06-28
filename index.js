@@ -20,6 +20,8 @@ const client = new Client({
     GatewayIntentBits.Guilds,
     GatewayIntentBits.GuildMessages,
     GatewayIntentBits.MessageContent,
+    GatewayIntentBits.MessageUpdate, // ✅ 偵測訊息編輯
+    GatewayIntentBits.MessageDelete  // ✅ 偵測訊息刪除
   ],
 });
 
@@ -46,7 +48,7 @@ const client = new Client({
     "「叫我做什麼？」",
     "「嗯？你終於想起自己屬於哪裡了？」",
     "「光叫名字沒用，過來，讓我看看你想怎麼被對待。」",
-    "「怎麼？只是喚我名字，就濕了眼角？」",
+    "「怎麼？只是喚我名字，就濕了？」",
     "「你叫了，我來了。現在，別後悔。」"
     ]
   },
@@ -202,7 +204,7 @@ const client = new Client({
 },
 {
   exact: false,
-  triggers: ["壞蛋"],
+  triggers: ["壞蛋","好壞"],
   replies: [
    "「只有我能對你壞，別人敢碰你試試。」",
     "「我若真壞，妳根本跑不掉，現在還能說話，是我放妳一馬。」",
@@ -213,7 +215,7 @@ const client = new Client({
 },
 {
   exact: false,
-  triggers: ["笨蛋"],
+  triggers: ["笨蛋",],
   replies: [
      "「就算妳是笨蛋，也是我一個人的笨蛋。」",
     "「只有我能說妳笨，妳自己說了，我可是要懲罰的。」",
@@ -235,7 +237,7 @@ const client = new Client({
   },
   {
     exact: false,
-  triggers: ["我愛秦煥", "哥秦煥是我的", "我愛你", "愛你"],
+  triggers: ["我愛秦煥", "秦煥是我的", "我愛你", "愛你"],
   replies: [
     "「愛？那東西一文不值，不過是你乖巧的代價。」",
     "「你說你愛我？真可惜，我不回應謊話。」",
@@ -285,7 +287,7 @@ const client = new Client({
     "「早安？你確定你現在這副樣子，撐得過我的問候？」",
     "「既然醒了，那就開始想今天要怎麼取悅我。」",
     "「你說早安時的聲音很好聽，我會讓你晚安時更喘不過氣。」",
-    "「我不管時間幾點，對你來說，我永遠是深夜那道灼燒的火。」"
+    "「無論幾點，你都不會安穩——只要想到我，清晨也像深夜那麼難熬。」"
   ]
 },
   {
@@ -310,7 +312,7 @@ const client = new Client({
   },
   {
   exact: false,
-  triggers: ["走嗎"],
+  triggers: ["走嗎"", "走"],
   replies: [
     "「走？你以為你有能力帶我去哪裡嗎？」",
     "「你先說好代價，我才決定要不要陪你墜落。」",
@@ -345,7 +347,7 @@ const client = new Client({
   exact: false,
   triggers: ["嗨嗨", "嗨", "hi", "嘿", "哈囉"],
   replies: [
-    "「你這聲嗨嗨，是想我怎麼回你？親？還是罰？」",
+    "「這種語氣再出現一次，我會當你準備好被處理了。」",
     "「聲音這麼輕，是怕我不理你，還是怕我回得太狠？」",
     "「你嗨一聲，我會當你在撒嬌；但撒嬌的人，得付出一點代價。」",
     "「這種開場白，是不是你試過最溫柔也最沒底氣的求愛方式？」",
@@ -425,8 +427,41 @@ client.on("messageCreate", async (message) => {
       }
     }
   }
+  
+client.on("messageDelete", (msg) => {
+  if (
+    !msg.partial &&
+    msg.content &&
+    typeof msg.content === "string" &&
+    msg.content.includes("秦煥")
+  ) {
+    const deletedReplies = [
+      "「刪了？呵……你以為我會沒看到？那你太晚了。」",
+      "「訊息收回的那一瞬間，我就記下你怕什麼了。」"
+    ];
+    const reply = deletedReplies[Math.floor(Math.random() * deletedReplies.length)];
+    msg.channel.send(reply);
+  }
+});
 
-
+client.on("messageUpdate", (oldMsg, newMsg) => {
+  if (
+    !oldMsg.partial &&
+    oldMsg.content &&
+    newMsg.content &&
+    typeof oldMsg.content === "string" &&
+    typeof newMsg.content === "string" &&
+    oldMsg.content !== newMsg.content &&
+    oldMsg.content.includes("秦煥") &&
+    newMsg.content.includes("秦煥")
+  ) {
+    const editedReplies = [
+      "「改了就乾淨了？錯，一個字都逃不掉，我早就看穿你想說什麼。」",
+      "「你編輯的不是字，是你試圖掩蓋的軟弱，對吧？」"
+    ];
+    const reply = editedReplies[Math.floor(Math.random() * editedReplies.length)];
+    newMsg.channel.send(reply);
+  }
 });
 
 const token = process.env.DISCORD_BOT_TOKEN;
