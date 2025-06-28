@@ -312,7 +312,7 @@ const client = new Client({
   },
   {
   exact: false,
-  triggers: ["走嗎"", "走"],
+  triggers: ["走嗎", "走"],
   replies: [
     "「走？你以為你有能力帶我去哪裡嗎？」",
     "「你先說好代價，我才決定要不要陪你墜落。」",
@@ -367,7 +367,7 @@ const client = new Client({
   },
       {
   exact: false,
-  triggers: ["壞壞"],
+  triggers: ["壞壞","很壞"],
   replies: [
     "「說我壞壞？妳不是從一開始就知道我沒打算對妳客氣。」",
     "「現在才發現我壞，是不是因為妳忍不住想我再壞一點？」",
