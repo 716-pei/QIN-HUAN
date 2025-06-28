@@ -170,7 +170,7 @@ const client = new Client({
 },
       {
   exact: false,
-  triggers: ["你來一下", "過來一下", "我想你來"],
+  triggers: ["來一下", "過來一下", "我想你來"],
   replies: [
     "「想我來？你打算用什麼代價換？」",
     "「命令我？還是求我？選一個姿態。」",
