@@ -427,7 +427,7 @@ client.on("messageCreate", async (message) => {
       }
     }
   }
-  
+  });
 client.on("messageDelete", (msg) => {
   if (
     !msg.partial &&
