@@ -758,7 +758,7 @@ client.on("messageCreate", async (message) => {
       ],
       max_tokens: 120,
       temperature: 0.9,
-    });
+    })
 
     const reply = completion.choices?.[0]?.message?.content?.trim();
     console.log("AI 回覆：", reply); // 看 log
@@ -769,31 +769,7 @@ client.on("messageCreate", async (message) => {
   }
 });
 
-  // --- Step 1：精準關鍵字 ---
-  for (const item of keywordReplies) {
-    if (!item.exact) continue;
-    for (const trigger of item.triggers) {
-      if (sanitize(content) === sanitize(trigger)) {
-        const reply = item.replies[Math.floor(Math.random() * item.replies.length)];
-        return message.reply(formatReply(reply));
-      }
-    }
-  }
-
-  // --- Step 2：模糊關鍵字 ---
-  const isCallingBot = mentionedMe;
-  if (!isCallingBot) return;
-
-  for (const item of keywordReplies) {
-    if (item.exact) continue;
-    for (const trigger of item.triggers) {
-      if (sanitize(content).includes(sanitize(trigger))) {
-        const reply = item.replies[Math.floor(Math.random() * item.replies.length)];
-        return message.reply(formatReply(reply));
-      }
-    }
-  }
-
+ 
 // 訊息刪除
 client.on("messageDelete", (msg) => {
   if (
