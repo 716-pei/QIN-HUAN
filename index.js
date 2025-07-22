@@ -732,65 +732,77 @@ const systemPrompt = `
 `.trim();
 
 client.on("messageCreate", async (message) => {
-  if (message.author.bot) return;
+  // --- 基礎資料 ---
+  const fromBot = message.author.bot;
+  const mentionedMe = message.mentions.has(client.user);
+  const raw = message.content ?? "";
+  let content = raw.trim();
 
-  // 取得訊息文字
-  let content = message.content.trim();
+  // ⚠️ 若是其它 bot，但沒提到我，直接忽略（避免機器人互刷）
+  // 如果你不想讓兄弟 bot 觸發，把這整個 if 改回：if (message.author.bot) return;
+  if (fromBot && !mentionedMe && !raw.includes("秦煥") && !raw.includes("煥煥")) {
+    return;
+  }
 
-  // 如果有提到 @秦煥 或 @煥煥，把 @mention 轉成「秦煥」，方便後續關鍵字判斷
-  if (message.mentions.has(client.user)) {
+  // 將 <@123456789> mention 替換為「秦煥」，讓精準匹配 & 模糊匹配都能命中
+  if (mentionedMe) {
     content = content.replace(/<@!?(\d+)>/g, "秦煥");
   }
 
-  // --- Step 0：@秦煥 或 @煥煥 → 嘗試用 OpenAI 回覆 ---
-  if (message.mentions.has(client.user) || content.includes("煥煥")) {
+  // 為 OpenAI 人設提供「發話者」資訊：兄弟 / 用戶
+  const speakerName = message.author?.username || "未知";
+  // 將來源包進 user content，讓模型知道是誰在對你說話
+  const aiUserContent = `[發話者:${speakerName}] ${content}`;
+
+  // --- Step 0：@秦煥 或「煥煥」→ 嘗試 OpenAI 回覆 ---
+  if (mentionedMe || content.includes("煥煥")) {
     try {
       const completion = await openai.chat.completions.create({
         model: "gpt-3.5-turbo",
         messages: [
           { role: "system", content: systemPrompt },
-          { role: "user", content },
+          { role: "user", content: aiUserContent },
         ],
         max_tokens: 120,
         temperature: 0.9,
-        presence_penalty: 0.2,   // 避免重複句型
-        frequency_penalty: 0.5,  // 減少相似回答
+        presence_penalty: 0.2,   // 避免總回同一句
+        frequency_penalty: 0.5,  // 降低重複字句
       });
 
-      const reply = completion.choices[0].message.content;
+      const reply = completion.choices?.[0]?.message?.content?.trim();
       if (reply) return message.reply(reply);
+      // 若模型回空，往下走關鍵字
     } catch (error) {
       console.error("OpenAI Error:", error);
+      // 出錯繼續往下跑關鍵字
     }
   }
 
-  // --- Step 1：精準關鍵字判斷 ---
+  // --- Step 1：精準關鍵字 (exact: true) ---
   for (const item of keywordReplies) {
-    if (item.exact) {
-      for (const trigger of item.triggers) {
-        if (sanitize(content) === sanitize(trigger)) {
-          const reply = item.replies[Math.floor(Math.random() * item.replies.length)];
-          return message.reply(reply);
-        }
+    if (!item.exact) continue;
+    for (const trigger of item.triggers) {
+      if (sanitize(content) === sanitize(trigger)) {
+        const reply = item.replies[Math.floor(Math.random() * item.replies.length)];
+        return message.reply(reply);
       }
     }
   }
 
-  // --- Step 2：模糊關鍵字判斷 ---
+  // --- Step 2：模糊關鍵字 (exact: false)，僅限呼叫過我才檢查 ---
   const isCallingBot =
     content.includes("秦煥") ||
     content.includes("煥煥") ||
-    message.mentions.has(client.user);
+    mentionedMe;
 
   if (!isCallingBot) return;
 
   for (const item of keywordReplies) {
-    if (!item.exact) {
-      for (const trigger of item.triggers) {
-        if (sanitize(content).includes(sanitize(trigger))) {
-          const reply = item.replies[Math.floor(Math.random() * item.replies.length)];
-          return message.reply(reply);
-        }
+    if (item.exact) continue;
+    for (const trigger of item.triggers) {
+      if (sanitize(content).includes(sanitize(trigger))) {
+        const reply = item.replies[Math.floor(Math.random() * item.replies.length)];
+        return message.reply(reply);
       }
     }
   }
