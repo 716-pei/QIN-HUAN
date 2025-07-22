@@ -744,28 +744,75 @@ function formatReply(text) {
 }
 
 client.on("messageCreate", async (message) => {
-  if (message.author.bot) return; // 忽略其他機器人
-  if (!message.mentions.has(client.user)) return; // 必須 @秦煥 才回覆
+  // --- 基礎資料 ---
+  const fromBot = message.author.bot;
+  const mentionedMe = message.mentions.has(client.user);
+  const raw = message.content ?? "";
+  let content = raw.trim();
 
-  const content = message.content.replace(/<@!?(\d+)>/g, "").trim(); // 去掉 mention
+  // 只回覆 @秦煥 或 @煥煥
+  if (!mentionedMe && !raw.includes("煥煥")) return;
 
+  // 把 <@12345> mention 換成「秦煥」
+  if (mentionedMe) {
+    content = content.replace(/<@!?(\d+)>/g, "秦煥");
+  }
+
+  // --- Step 0：AI 回覆 ---
   try {
     const completion = await openai.chat.completions.create({
       model: "openai/gpt-3.5-turbo",
       messages: [
-        { role: "system", content: "你是秦煥，語氣冷狠，回覆 1~3 句。" },
+        { role: "system", content: systemPrompt },
         { role: "user", content },
       ],
       max_tokens: 120,
       temperature: 0.9,
-    })
+      presence_penalty: 0.5,
+      frequency_penalty: 0.7,
+      n: 3, // 生成 3 個備選回覆
+    });
 
-    const reply = completion.choices?.[0]?.message?.content?.trim();
-    console.log("AI 回覆：", reply); // 看 log
-    if (reply) return message.reply(`「${reply}」`);
+    // 隨機選擇一個回覆
+    const choices = completion.choices.map(c => c.message.content.trim());
+    const reply = choices[Math.floor(Math.random() * choices.length)];
+
+    if (reply) {
+      await message.reply(formatReply(reply));
+      return; // **避免 AI 回覆後繼續觸發關鍵字**
+    }
   } catch (error) {
-    console.error("OpenAI Error:", error);
-    return message.reply("（AI 沒回覆）");
+    if (error.response?.status === 429) {
+      console.warn("⚠️ OpenRouter 模型額度可能暫時用完，改跑關鍵字。");
+    } else {
+      console.error("OpenAI/OpenRouter Error:", error?.response?.data || error);
+    }
+    // 出錯時才繼續跑關鍵字
+  }
+
+  // --- Step 1：精準關鍵字 ---
+  for (const item of keywordReplies) {
+    if (!item.exact) continue;
+    for (const trigger of item.triggers) {
+      if (sanitize(content) === sanitize(trigger)) {
+        const reply = item.replies[Math.floor(Math.random() * item.replies.length)];
+        return message.reply(formatReply(reply));
+      }
+    }
+  }
+
+  // --- Step 2：模糊關鍵字 ---
+  const isCallingBot = mentionedMe;
+  if (!isCallingBot) return;
+
+  for (const item of keywordReplies) {
+    if (item.exact) continue;
+    for (const trigger of item.triggers) {
+      if (sanitize(content).includes(sanitize(trigger))) {
+        const reply = item.replies[Math.floor(Math.random() * item.replies.length)];
+        return message.reply(formatReply(reply));
+      }
+    }
   }
 });
 
