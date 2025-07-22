@@ -793,7 +793,6 @@ client.on("messageCreate", async (message) => {
       }
     }
   }
-});
 
 // 訊息刪除
 client.on("messageDelete", (msg) => {
