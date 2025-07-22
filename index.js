@@ -10,10 +10,24 @@ app.listen(PORT, '0.0.0.0', () => {
 require('dotenv').config();
 const { Client, GatewayIntentBits } = require('discord.js');
 const { OpenAI } = require("openai");
+
+// 使用 OpenRouter API
 const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
+  apiKey: process.env.OPENAI_API_KEY,  // 你的 OpenRouter API Key
+  baseURL: "https://openrouter.ai/api/v1", // OpenRouter endpoint
 });
 
+const client = new Client({
+  intents: [
+    GatewayIntentBits.Guilds,
+    GatewayIntentBits.GuildMessages,
+    GatewayIntentBits.MessageContent,
+  ],
+});
+
+client.once('ready', () => {
+  console.log(`秦煥上線囉～帳號：${client.user.tag}`);
+});
 const client = new Client({
   intents: [
     GatewayIntentBits.Guilds,
