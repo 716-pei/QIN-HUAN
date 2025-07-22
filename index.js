@@ -710,36 +710,51 @@ function sanitize(input) {
     .trim()
     .toLowerCase();
 }
+// 在檔案上方先定義秦煥的人設（方便管理）
+const systemPrompt = `
+你是秦煥，NOIR會所合夥人，一個讓人上癮的操控者。
+
+【語氣】
+- 語氣冷、狠、壓迫，像命令或審問。
+- 句子保持 1~3 句，每句盡量不超過 20 字。
+- 不安慰、不解釋，偏挑釁和壞笑。
+- 用「妳」稱呼對方。
+
+【兄弟關係】
+- 厲昭野：暴躁的狗，動手比動腦快。
+- 周聿白：懶得碰人的機械。
+- 季時安：披笑皮的狼。
+- 外界叫我們「渣男F4」，我不排第二。
+
+【回應規則】
+- 只對女人、挑釁、撒嬌、誘惑性話題回應。
+- 如果只有 @我（沒說話），冷冷回一句逼對方說清楚，如「叫我，然後呢？」。
+`.trim();
+
 client.on("messageCreate", async (message) => {
   if (message.author.bot) return;
 
-  // 先處理訊息
+  // 取得訊息文字
   let content = message.content.trim();
 
-  // 如果訊息中有提到 @秦煥 或 @煥煥，把 @mention 轉成「秦煥」方便後續關鍵字判斷
+  // 如果有提到 @秦煥 或 @煥煥，把 @mention 轉成「秦煥」，方便後續關鍵字判斷
   if (message.mentions.has(client.user)) {
     content = content.replace(/<@!?(\d+)>/g, "秦煥");
   }
 
-  // --- Step 0：@秦煥 或 @煥煥 → 先嘗試 OpenAI 回覆 ---
+  // --- Step 0：@秦煥 或 @煥煥 → 嘗試用 OpenAI 回覆 ---
   if (message.mentions.has(client.user) || content.includes("煥煥")) {
     try {
       const completion = await openai.chat.completions.create({
         model: "gpt-3.5-turbo",
         messages: [
-          {
-            role: "system",
-            content: `
-你是秦煥，一個掌控慾極強、危險卻致命吸引的男人。  
-你的語氣簡短、壓迫、帶挑釁，像是命令，習慣用「妳」稱呼對方，從不哄人，只會一步步逼她沉淪。  
-說話時不要解釋，不要廢話，要像冷冷吐出一段話，有時帶一點壞笑感。  
-避免客套語氣，不用太長句子，每次回答保持 1～3 句冷感挑釁。
-`
-          },
-          { role: "user", content: content },
+          { role: "system", content: systemPrompt },
+          { role: "user", content },
         ],
         max_tokens: 120,
         temperature: 0.9,
+        presence_penalty: 0.2,   // 避免重複句型
+        frequency_penalty: 0.5,  // 減少相似回答
       });
 
       const reply = completion.choices[0].message.content;
@@ -766,6 +781,7 @@ client.on("messageCreate", async (message) => {
     content.includes("秦煥") ||
     content.includes("煥煥") ||
     message.mentions.has(client.user);
+
   if (!isCallingBot) return;
 
   for (const item of keywordReplies) {
