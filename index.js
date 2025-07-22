@@ -1,15 +1,14 @@
+// 開頭 (Express + Discord client)
 const express = require('express');
 const app = express();
 app.get('/', (req, res) => res.send('秦煥在線上～陪你貼貼(*´∀`)~♥'));
 const PORT = process.env.PORT || 3000;
-
 app.listen(PORT, '0.0.0.0', () => {
   console.log(`✅ 秦喚醒著喔！伺服器在 ${PORT} 上啟動成功`);
 });
 
 require('dotenv').config();
 const { Client, GatewayIntentBits } = require('discord.js');
-const axios = require('axios');
 const { OpenAI } = require("openai");
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
@@ -23,10 +22,11 @@ const client = new Client({
   ],
 });
 
-    client.once('ready', () => {
-      console.log(`秦煥上線囉～帳號：${client.user.tag}`);
-    });
+client.once('ready', () => {
+  console.log(`秦煥上線囉～帳號：${client.user.tag}`);
+});
 
+// 關鍵字回應陣列
     const keywordReplies = [
   {
     exact: false,
@@ -710,27 +710,55 @@ function sanitize(input) {
     .trim()
     .toLowerCase();
 }
-client.on("messageCreate", async (message) => {
-  if (message.author.bot) return;
+// 只有在妳 @秦煥 時，我才會回應
+if (message.mentions.has(client.user)) {
+  try {
+    const completion = await openai.chat.completions.create({
+      model: "gpt-3.5-turbo",
+      messages: [
+        {
+          role: "system",
+          content: `
+你是秦煥，一個掌控慾極強、危險卻致命吸引的男人。  
+你的語氣簡短、壓迫、帶挑釁，像是命令，習慣用「妳」稱呼對方，從不哄人，只會一步步逼她沉淪。  
+說話時不要解釋，不要廢話，要像冷冷吐出一段話，有時帶一點壞笑感。  
+避免客套語氣，不用太長句子，每次回答保持 1～3 句冷感挑釁。
+`
+        },
+        {
+          role: "user",
+          content: content,
+        },
+      ],
+      max_tokens: 120,
+      temperature: 0.9, // 提高情緒化和隨機性
+    });
 
-  const content = message.content.trim();
+    const reply = completion.choices[0].message.content;
+    if (reply) return message.reply(reply);
+  } catch (error) {
+    console.error("OpenAI Error:", error);
+    // 當 OpenAI 出錯或扣打沒了，就繼續跑關鍵字模式
+  }
+}
 
   // Step 1：精準的「秦煥」才回覆秦煥那段
- for (const item of keywordReplies) {
+  for (const item of keywordReplies) {
     if (item.exact) {
       for (const trigger of item.triggers) {
-       if (sanitize(content) === sanitize(trigger)) {
+        if (sanitize(content) === sanitize(trigger)) {
           const reply = item.replies[Math.floor(Math.random() * item.replies.length)];
           return message.reply(reply);
         }
       }
     }
   }
+
   // Step 2：有提到「秦煥」或 @bot 才觸發模糊回覆
   const isCallingBot =
-  content.includes("秦煥") ||
-  content.includes("煥煥") ||
-  message.mentions.has(client.user);
+    content.includes("秦煥") ||
+    content.includes("煥煥") ||
+    message.mentions.has(client.user);
   if (!isCallingBot) return;
 
   for (const item of keywordReplies) {
@@ -743,7 +771,7 @@ client.on("messageCreate", async (message) => {
       }
     }
   }
-  });
+});
 client.on("messageDelete", (msg) => {
   if (
     !msg.partial &&
