@@ -738,21 +738,15 @@ client.on("messageCreate", async (message) => {
   const raw = message.content ?? "";
   let content = raw.trim();
 
-  // ⚠️ 若是其它 bot，但沒提到我，直接忽略（避免機器人互刷）
-  // 如果你不想讓兄弟 bot 觸發，把這整個 if 改回：if (message.author.bot) return;
+  // ⚠️ 若是其它 bot，但沒提到我，直接忽略
   if (fromBot && !mentionedMe && !raw.includes("秦煥") && !raw.includes("煥煥")) {
     return;
   }
 
-  // 將 <@123456789> mention 替換為「秦煥」，讓精準匹配 & 模糊匹配都能命中
+  // 將 <@123456789> mention 替換為「秦煥」
   if (mentionedMe) {
     content = content.replace(/<@!?(\d+)>/g, "秦煥");
   }
-
-  // 為 OpenAI 人設提供「發話者」資訊：兄弟 / 用戶
-  const speakerName = message.author?.username || "未知";
-  // 將來源包進 user content，讓模型知道是誰在對你說話
-  const aiUserContent = `[發話者:${speakerName}] ${content}`;
 
   // --- Step 0：@秦煥 或「煥煥」→ 嘗試 OpenAI 回覆 ---
   if (mentionedMe || content.includes("煥煥")) {
@@ -761,20 +755,23 @@ client.on("messageCreate", async (message) => {
         model: "gpt-3.5-turbo",
         messages: [
           { role: "system", content: systemPrompt },
-          { role: "user", content: aiUserContent },
+          { role: "user", content },
         ],
         max_tokens: 120,
         temperature: 0.9,
-        presence_penalty: 0.2,   // 避免總回同一句
-        frequency_penalty: 0.5,  // 降低重複字句
+        presence_penalty: 0.2,
+        frequency_penalty: 0.5,
       });
 
       const reply = completion.choices?.[0]?.message?.content?.trim();
-      if (reply) return message.reply(reply);
-      // 若模型回空，往下走關鍵字
+      if (reply) return message.reply(reply);  // 有AI回覆就直接返回
     } catch (error) {
-      console.error("OpenAI Error:", error);
-      // 出錯繼續往下跑關鍵字
+      if (error.response?.status === 429) {
+        console.warn("⚠️ OpenAI API 今天免費額度用完，轉回關鍵字模式");
+      } else {
+        console.error("OpenAI Error:", error);
+      }
+      // 出錯時繼續執行關鍵字邏輯
     }
   }
 
@@ -789,7 +786,7 @@ client.on("messageCreate", async (message) => {
     }
   }
 
-  // --- Step 2：模糊關鍵字 (exact: false)，僅限呼叫過我才檢查 ---
+  // --- Step 2：模糊關鍵字 (exact: false)，需有呼叫行為 ---
   const isCallingBot =
     content.includes("秦煥") ||
     content.includes("煥煥") ||
@@ -807,23 +804,6 @@ client.on("messageCreate", async (message) => {
     }
   }
 });
-client.on("messageDelete", (msg) => {
-  if (
-    !msg.partial &&
-    msg.content &&
-    typeof msg.content === "string" &&
-    msg.content.includes("秦煥")
-  )
-  {
-    const deletedReplies = [
-      "「刪了？呵……你以為我會沒看到？那你太晚了。」",
-      "「訊息收回的那一瞬間，我就記下你怕什麼了。」"
-    ];
-    const reply = deletedReplies[Math.floor(Math.random() * deletedReplies.length)];
-    msg.channel.send(reply);
-  }
-});
-
 client.on("messageUpdate", (oldMsg, newMsg) => {
   if (
     !oldMsg.partial &&
