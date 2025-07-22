@@ -784,7 +784,7 @@ client.on("messageCreate", async (message) => {
 
     if (reply) {
       await message.reply(formatReply(reply));
-      return; // **避免 AI 回覆後繼續觸發關鍵字**
+      return; // AI 回覆成功後，直接結束，避免進入關鍵字
     }
   } catch (error) {
     if (error.response?.status === 429) {
@@ -792,7 +792,7 @@ client.on("messageCreate", async (message) => {
     } else {
       console.error("OpenAI/OpenRouter Error:", error?.response?.data || error);
     }
-    // 出錯時才繼續跑關鍵字
+    // **如果錯誤，才繼續執行關鍵字**
   }
 
   // --- Step 1：精準關鍵字 ---
@@ -807,9 +807,6 @@ client.on("messageCreate", async (message) => {
   }
 
   // --- Step 2：模糊關鍵字 ---
-  const isCallingBot = mentionedMe;
-  if (!isCallingBot) return;
-
   for (const item of keywordReplies) {
     if (item.exact) continue;
     for (const trigger of item.triggers) {
