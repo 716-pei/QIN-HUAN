@@ -744,50 +744,30 @@ function formatReply(text) {
 }
 
 client.on("messageCreate", async (message) => {
-  // --- 基礎資料 ---
-  const fromBot = message.author.bot;
-  const mentionedMe = message.mentions.has(client.user);
-  const raw = message.content ?? "";
-  let content = raw.trim();
+  if (message.author.bot) return; // 忽略其他機器人
+  if (!message.mentions.has(client.user)) return; // 必須 @秦煥 才回覆
 
-  // 只回覆 @秦煥 或 @煥煥
-  if (!mentionedMe) return;
+  const content = message.content.replace(/<@!?(\d+)>/g, "").trim(); // 去掉 mention
 
-  // 把 <@12345> mention 換成「秦煥」方便比對
-  if (mentionedMe) {
-    content = content.replace(/<@!?(\d+)>/g, "秦煥");
+  try {
+    const completion = await openai.chat.completions.create({
+      model: "openai/gpt-3.5-turbo",
+      messages: [
+        { role: "system", content: "你是秦煥，語氣冷狠，回覆 1~3 句。" },
+        { role: "user", content },
+      ],
+      max_tokens: 120,
+      temperature: 0.9,
+    });
+
+    const reply = completion.choices?.[0]?.message?.content?.trim();
+    console.log("AI 回覆：", reply); // 看 log
+    if (reply) return message.reply(`「${reply}」`);
+  } catch (error) {
+    console.error("OpenAI Error:", error);
+    return message.reply("（AI 沒回覆）");
   }
-
-  // --- Step 0：AI 回覆 ---
-  if (mentionedMe || content.includes("煥煥")) {
-    try {
-      const completion = await openai.chat.completions.create({
-        model: "openai/gpt-3.5-turbo",
-        messages: [
-          { role: "system", content: systemPrompt },
-          { role: "user", content },
-        ],
-        max_tokens: 120,
-        temperature: 0.9,
-        presence_penalty: 0.5,
-        frequency_penalty: 0.7,
-        n: 3,  // 生成 3 個備選回覆
-      });
-
-      // 隨機選擇一個回覆
-      const choices = completion.choices.map(c => c.message.content.trim());
-      const reply = choices[Math.floor(Math.random() * choices.length)];
-
-      if (reply) return message.reply(formatReply(reply));
-    } catch (error) {
-      if (error.response?.status === 429) {
-        console.warn("⚠️ OpenRouter 模型額度可能暫時用完，改跑關鍵字。");
-      } else {
-        console.error("OpenAI/OpenRouter Error:", error?.response?.data || error);
-      }
-      // 繼續跑關鍵字
-    }
-  }
+});
 
   // --- Step 1：精準關鍵字 ---
   for (const item of keywordReplies) {
