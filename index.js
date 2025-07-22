@@ -738,6 +738,11 @@ const systemPrompt = `
 - 如果只有 @我（沒說話），冷冷回一句逼對方說清楚，如「叫我，然後呢？」。
 `.trim();
 
+// --- 格式化回覆，包上「」 ---
+function formatReply(text) {
+  return `「${text}」`;
+}
+
 client.on("messageCreate", async (message) => {
   // --- 基礎資料 ---
   const fromBot = message.author.bot;
@@ -745,60 +750,58 @@ client.on("messageCreate", async (message) => {
   const raw = message.content ?? "";
   let content = raw.trim();
 
-  // 若是其它 bot 又沒叫我，忽略（避免機器人互刷）
-  if (fromBot && !mentionedMe && !raw.includes("秦煥") && !raw.includes("煥煥")) {
-    return;
-  }
+  // 只回覆 @秦煥 或 @煥煥
+  if (!mentionedMe) return;
 
   // 把 <@12345> mention 換成「秦煥」方便比對
   if (mentionedMe) {
     content = content.replace(/<@!?(\d+)>/g, "秦煥");
   }
 
-// --- Step 0：只在 @秦煥 或 @煥煥 時觸發 OpenAI ---
-if (mentionedMe) {
-  try {
-    const completion = await openai.chat.completions.create({
-      model: "openai/gpt-3.5-turbo",
-      messages: [
-        { role: "system", content: systemPrompt },
-        { role: "user", content },
-      ],
-      max_tokens: 120,
-      temperature: 0.9,
-      presence_penalty: 0.2,
-      frequency_penalty: 0.5,
-    });
+  // --- Step 0：AI 回覆 ---
+  if (mentionedMe || content.includes("煥煥")) {
+    try {
+      const completion = await openai.chat.completions.create({
+        model: "openai/gpt-3.5-turbo",
+        messages: [
+          { role: "system", content: systemPrompt },
+          { role: "user", content },
+        ],
+        max_tokens: 120,
+        temperature: 0.9,
+        presence_penalty: 0.5,
+        frequency_penalty: 0.7,
+        n: 3,  // 生成 3 個備選回覆
+      });
 
-    const reply = completion.choices?.[0]?.message?.content?.trim();
-    if (reply) return message.reply(formatReply(reply));
-  } catch (error) {
-    if (error.response?.status === 429) {
-      console.warn("⚠️ OpenRouter 模型額度可能暫時用完，改跑關鍵字。");
-    } else {
-      console.error("OpenAI/OpenRouter Error:", error?.response?.data || error);
+      // 隨機選擇一個回覆
+      const choices = completion.choices.map(c => c.message.content.trim());
+      const reply = choices[Math.floor(Math.random() * choices.length)];
+
+      if (reply) return message.reply(formatReply(reply));
+    } catch (error) {
+      if (error.response?.status === 429) {
+        console.warn("⚠️ OpenRouter 模型額度可能暫時用完，改跑關鍵字。");
+      } else {
+        console.error("OpenAI/OpenRouter Error:", error?.response?.data || error);
+      }
+      // 繼續跑關鍵字
     }
-    // 繼續跑關鍵字
   }
-}
 
-  // --- Step 1：精準關鍵字 (exact: true) ---
+  // --- Step 1：精準關鍵字 ---
   for (const item of keywordReplies) {
     if (!item.exact) continue;
     for (const trigger of item.triggers) {
       if (sanitize(content) === sanitize(trigger)) {
         const reply = item.replies[Math.floor(Math.random() * item.replies.length)];
-        return message.reply(reply);
+        return message.reply(formatReply(reply));
       }
     }
   }
 
-  // --- Step 2：模糊關鍵字 (exact: false) -- 必須叫過我 ---
-  const isCallingBot =
-    content.includes("秦煥") ||
-    content.includes("煥煥") ||
-    mentionedMe;
-
+  // --- Step 2：模糊關鍵字 ---
+  const isCallingBot = mentionedMe;
   if (!isCallingBot) return;
 
   for (const item of keywordReplies) {
@@ -806,7 +809,7 @@ if (mentionedMe) {
     for (const trigger of item.triggers) {
       if (sanitize(content).includes(sanitize(trigger))) {
         const reply = item.replies[Math.floor(Math.random() * item.replies.length)];
-        return message.reply(reply);
+        return message.reply(formatReply(reply));
       }
     }
   }
