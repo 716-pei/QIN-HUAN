@@ -713,10 +713,16 @@ function sanitize(input) {
 client.on("messageCreate", async (message) => {
   if (message.author.bot) return;
 
-  const content = message.content.trim();
+  // 先處理訊息
+  let content = message.content.trim();
 
-  // Step 0：只在 @秦煥 時觸發 OpenAI 回覆
+  // 如果訊息中有提到 @秦煥 或 @煥煥，把 @mention 轉成「秦煥」方便後續關鍵字判斷
   if (message.mentions.has(client.user)) {
+    content = content.replace(/<@!?(\d+)>/g, "秦煥");
+  }
+
+  // --- Step 0：@秦煥 或 @煥煥 → 先嘗試 OpenAI 回覆 ---
+  if (message.mentions.has(client.user) || content.includes("煥煥")) {
     try {
       const completion = await openai.chat.completions.create({
         model: "gpt-3.5-turbo",
@@ -728,9 +734,9 @@ client.on("messageCreate", async (message) => {
 你的語氣簡短、壓迫、帶挑釁，像是命令，習慣用「妳」稱呼對方，從不哄人，只會一步步逼她沉淪。  
 說話時不要解釋，不要廢話，要像冷冷吐出一段話，有時帶一點壞笑感。  
 避免客套語氣，不用太長句子，每次回答保持 1～3 句冷感挑釁。
-            `
+`
           },
-          { role: "user", content },
+          { role: "user", content: content },
         ],
         max_tokens: 120,
         temperature: 0.9,
@@ -740,11 +746,10 @@ client.on("messageCreate", async (message) => {
       if (reply) return message.reply(reply);
     } catch (error) {
       console.error("OpenAI Error:", error);
-      // 出錯或扣打沒了就繼續關鍵字模式
     }
   }
 
-  // Step 1：精準的「秦煥」才回覆秦煥那段
+  // --- Step 1：精準關鍵字判斷 ---
   for (const item of keywordReplies) {
     if (item.exact) {
       for (const trigger of item.triggers) {
@@ -756,7 +761,7 @@ client.on("messageCreate", async (message) => {
     }
   }
 
-  // Step 2：有提到「秦煥」或 @bot 才觸發模糊回覆
+  // --- Step 2：模糊關鍵字判斷 ---
   const isCallingBot =
     content.includes("秦煥") ||
     content.includes("煥煥") ||
