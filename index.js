@@ -710,37 +710,39 @@ function sanitize(input) {
     .trim()
     .toLowerCase();
 }
-// 只有在妳 @秦煥 時，我才會回應
-if (message.mentions.has(client.user)) {
-  try {
-    const completion = await openai.chat.completions.create({
-      model: "gpt-3.5-turbo",
-      messages: [
-        {
-          role: "system",
-          content: `
+client.on("messageCreate", async (message) => {
+  if (message.author.bot) return;
+
+  const content = message.content.trim();
+
+  // Step 0：只在 @秦煥 時觸發 OpenAI 回覆
+  if (message.mentions.has(client.user)) {
+    try {
+      const completion = await openai.chat.completions.create({
+        model: "gpt-3.5-turbo",
+        messages: [
+          {
+            role: "system",
+            content: `
 你是秦煥，一個掌控慾極強、危險卻致命吸引的男人。  
 你的語氣簡短、壓迫、帶挑釁，像是命令，習慣用「妳」稱呼對方，從不哄人，只會一步步逼她沉淪。  
 說話時不要解釋，不要廢話，要像冷冷吐出一段話，有時帶一點壞笑感。  
 避免客套語氣，不用太長句子，每次回答保持 1～3 句冷感挑釁。
-`
-        },
-        {
-          role: "user",
-          content: content,
-        },
-      ],
-      max_tokens: 120,
-      temperature: 0.9, // 提高情緒化和隨機性
-    });
+            `
+          },
+          { role: "user", content },
+        ],
+        max_tokens: 120,
+        temperature: 0.9,
+      });
 
-    const reply = completion.choices[0].message.content;
-    if (reply) return message.reply(reply);
-  } catch (error) {
-    console.error("OpenAI Error:", error);
-    // 當 OpenAI 出錯或扣打沒了，就繼續跑關鍵字模式
+      const reply = completion.choices[0].message.content;
+      if (reply) return message.reply(reply);
+    } catch (error) {
+      console.error("OpenAI Error:", error);
+      // 出錯或扣打沒了就繼續關鍵字模式
+    }
   }
-}
 
   // Step 1：精準的「秦煥」才回覆秦煥那段
   for (const item of keywordReplies) {
