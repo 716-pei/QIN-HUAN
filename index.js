@@ -13,10 +13,11 @@ const { OpenAI } = require("openai");
 
 // 使用 OpenRouter API
 const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,  // 你的 OpenRouter API Key
-  baseURL: "https://openrouter.ai/api/v1", // OpenRouter endpoint
+  apiKey: process.env.OPENAI_API_KEY,  // ← 若要改名，記得改 .env & 這裡
+  baseURL: "https://openrouter.ai/api/v1",
 });
 
+// 建立 Discord Client
 const client = new Client({
   intents: [
     GatewayIntentBits.Guilds,
@@ -28,17 +29,7 @@ const client = new Client({
 client.once('ready', () => {
   console.log(`秦煥上線囉～帳號：${client.user.tag}`);
 });
-const client = new Client({
-  intents: [
-    GatewayIntentBits.Guilds,
-    GatewayIntentBits.GuildMessages,
-    GatewayIntentBits.MessageContent,
-  ],
-});
 
-client.once('ready', () => {
-  console.log(`秦煥上線囉～帳號：${client.user.tag}`);
-});
 
 // 關鍵字回應陣列
     const keywordReplies = [
@@ -716,15 +707,17 @@ client.once('ready', () => {
 
 ];
 
+// 清理文字
 function sanitize(input) {
   return input
     .normalize("NFKD")
-    .replace(/[\p{Emoji}\p{P}\p{S}\p{M}\p{Z}~～\u3000]/gu, "") // 更強化移除符號、標點、emoji、空白
-    .replace(/[(（【].*?[)）】]/g, "") // 移除「顏文字」包裹的內容 (⋯) 或 【⋯】
+    .replace(/[\p{Emoji}\p{P}\p{S}\p{M}\p{Z}~～\u3000]/gu, "")
+    .replace(/[(（【].*?[)）】]/g, "")
     .trim()
     .toLowerCase();
 }
-// 在檔案上方先定義秦煥的人設（方便管理）
+
+// 人設（System Prompt）
 const systemPrompt = `
 你是秦煥，NOIR會所合夥人，一個讓人上癮的操控者。
 
@@ -752,40 +745,40 @@ client.on("messageCreate", async (message) => {
   const raw = message.content ?? "";
   let content = raw.trim();
 
-  // ⚠️ 若是其它 bot，但沒提到我，直接忽略
+  // 若是其它 bot 又沒叫我，忽略（避免機器人互刷）
   if (fromBot && !mentionedMe && !raw.includes("秦煥") && !raw.includes("煥煥")) {
     return;
   }
 
-  // 將 <@123456789> mention 替換為「秦煥」
+  // 把 <@12345> mention 換成「秦煥」方便比對
   if (mentionedMe) {
     content = content.replace(/<@!?(\d+)>/g, "秦煥");
   }
 
-  // --- Step 0：@秦煥 或「煥煥」→ 嘗試 OpenAI 回覆 ---
+  // --- Step 0：@秦煥 或「煥煥」→ 先試 OpenAI ---
   if (mentionedMe || content.includes("煥煥")) {
     try {
       const completion = await openai.chat.completions.create({
-  model: "openai/gpt-3.5-turbo",
-  messages: [
-    { role: "system", content: systemPrompt },
-    { role: "user", content },
-  ],
-  max_tokens: 120,
-  temperature: 0.9,
-  presence_penalty: 0.2,
-  frequency_penalty: 0.5,
-});
+        model: "openai/gpt-3.5-turbo",
+        messages: [
+          { role: "system", content: systemPrompt },
+          { role: "user", content },
+        ],
+        max_tokens: 120,
+        temperature: 0.9,
+        presence_penalty: 0.2,
+        frequency_penalty: 0.5,
+      });
 
       const reply = completion.choices?.[0]?.message?.content?.trim();
-      if (reply) return message.reply(reply);  // 有AI回覆就直接返回
+      if (reply) return message.reply(reply);  // 有 AI 回覆就不跑關鍵字
     } catch (error) {
       if (error.response?.status === 429) {
-        console.warn("⚠️ OpenAI API 今天免費額度用完，轉回關鍵字模式");
+        console.warn("⚠️ OpenRouter 模型額度可能暫時用完，改跑關鍵字。");
       } else {
-        console.error("OpenAI Error:", error);
+        console.error("OpenAI/OpenRouter Error:", error?.response?.data || error);
       }
-      // 出錯時繼續執行關鍵字邏輯
+      // 繼續跑關鍵字
     }
   }
 
@@ -800,7 +793,7 @@ client.on("messageCreate", async (message) => {
     }
   }
 
-  // --- Step 2：模糊關鍵字 (exact: false)，需有呼叫行為 ---
+  // --- Step 2：模糊關鍵字 (exact: false) -- 必須叫過我 ---
   const isCallingBot =
     content.includes("秦煥") ||
     content.includes("煥煥") ||
@@ -818,6 +811,25 @@ client.on("messageCreate", async (message) => {
     }
   }
 });
+
+// 訊息刪除
+client.on("messageDelete", (msg) => {
+  if (
+    !msg.partial &&
+    msg.content &&
+    typeof msg.content === "string" &&
+    msg.content.includes("秦煥")
+  ) {
+    const deletedReplies = [
+      "「刪了？呵……你以為我會沒看到？那你太晚了。」",
+      "「訊息收回的那一瞬間，我就記下你怕什麼了。」"
+    ];
+    const reply = deletedReplies[Math.floor(Math.random() * deletedReplies.length)];
+    msg.channel.send(reply);
+  }
+});
+
+// 訊息編輯
 client.on("messageUpdate", (oldMsg, newMsg) => {
   if (
     !oldMsg.partial &&
@@ -828,8 +840,7 @@ client.on("messageUpdate", (oldMsg, newMsg) => {
     oldMsg.content !== newMsg.content &&
     oldMsg.content.includes("秦煥") &&
     newMsg.content.includes("秦煥")
-  ) 
-  {
+  ) {
     const editedReplies = [
       "「改了就乾淨了？錯，一個字都逃不掉，我早就看穿你想說什麼。」",
       "「你編輯的不是字，是你試圖掩蓋的軟弱，對吧？」"
@@ -839,5 +850,6 @@ client.on("messageUpdate", (oldMsg, newMsg) => {
   }
 });
 
+// 啟動
 const token = process.env.DISCORD_BOT_TOKEN;
 client.login(token);
