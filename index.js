@@ -755,32 +755,32 @@ client.on("messageCreate", async (message) => {
     content = content.replace(/<@!?(\d+)>/g, "秦煥");
   }
 
-  // --- Step 0：@秦煥 或「煥煥」→ 先試 OpenAI ---
-  if (mentionedMe || content.includes("煥煥")) {
-    try {
-      const completion = await openai.chat.completions.create({
-        model: "openai/gpt-3.5-turbo",
-        messages: [
-          { role: "system", content: systemPrompt },
-          { role: "user", content },
-        ],
-        max_tokens: 120,
-        temperature: 0.9,
-        presence_penalty: 0.2,
-        frequency_penalty: 0.5,
-      });
+// --- Step 0：只在 @秦煥 或 @煥煥 時觸發 OpenAI ---
+if (mentionedMe) {
+  try {
+    const completion = await openai.chat.completions.create({
+      model: "openai/gpt-3.5-turbo",
+      messages: [
+        { role: "system", content: systemPrompt },
+        { role: "user", content },
+      ],
+      max_tokens: 120,
+      temperature: 0.9,
+      presence_penalty: 0.2,
+      frequency_penalty: 0.5,
+    });
 
-      const reply = completion.choices?.[0]?.message?.content?.trim();
-      if (reply) return message.reply(reply);  // 有 AI 回覆就不跑關鍵字
-    } catch (error) {
-      if (error.response?.status === 429) {
-        console.warn("⚠️ OpenRouter 模型額度可能暫時用完，改跑關鍵字。");
-      } else {
-        console.error("OpenAI/OpenRouter Error:", error?.response?.data || error);
-      }
-      // 繼續跑關鍵字
+    const reply = completion.choices?.[0]?.message?.content?.trim();
+    if (reply) return message.reply(formatReply(reply));
+  } catch (error) {
+    if (error.response?.status === 429) {
+      console.warn("⚠️ OpenRouter 模型額度可能暫時用完，改跑關鍵字。");
+    } else {
+      console.error("OpenAI/OpenRouter Error:", error?.response?.data || error);
     }
+    // 繼續跑關鍵字
   }
+}
 
   // --- Step 1：精準關鍵字 (exact: true) ---
   for (const item of keywordReplies) {
