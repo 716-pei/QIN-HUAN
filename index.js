@@ -766,16 +766,16 @@ client.on("messageCreate", async (message) => {
   if (mentionedMe || content.includes("煥煥")) {
     try {
       const completion = await openai.chat.completions.create({
-        model: "gpt-3.5-turbo",
-        messages: [
-          { role: "system", content: systemPrompt },
-          { role: "user", content },
-        ],
-        max_tokens: 120,
-        temperature: 0.9,
-        presence_penalty: 0.2,
-        frequency_penalty: 0.5,
-      });
+  model: "openai/gpt-3.5-turbo",
+  messages: [
+    { role: "system", content: systemPrompt },
+    { role: "user", content },
+  ],
+  max_tokens: 120,
+  temperature: 0.9,
+  presence_penalty: 0.2,
+  frequency_penalty: 0.5,
+});
 
       const reply = completion.choices?.[0]?.message?.content?.trim();
       if (reply) return message.reply(reply);  // 有AI回覆就直接返回
