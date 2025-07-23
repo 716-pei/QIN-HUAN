@@ -784,10 +784,10 @@ client.on("messageCreate", async (message) => {
   chatHistory.push({ role: "user", content });
   if (chatHistory.length > 5) chatHistory.shift(); // 只保留最近 5 條
 
-  // --- Step 0：AI 回覆 ---
+  // --- Step 0：AI 回覆（Gemini 2.0 Flash） ---
   try {
     const completion = await openai.chat.completions.create({
-      model: "openai/gpt-3.5-turbo",
+      model: "google/gemini-2.0-flash-exp:free",
       messages: [
         { role: "system", content: systemPrompt },
         ...chatHistory
@@ -799,7 +799,6 @@ client.on("messageCreate", async (message) => {
       n: 3, // 生成 3 個備選回覆
     });
 
-    // 隨機選擇一個回覆
     const choices = completion.choices.map(c => c.message.content.trim());
     const reply = choices[Math.floor(Math.random() * choices.length)];
 
@@ -810,11 +809,11 @@ client.on("messageCreate", async (message) => {
     }
   } catch (error) {
     if (error.response?.status === 429) {
-      console.warn("⚠️ OpenRouter 模型額度可能暫時用完，改跑關鍵字。");
+      console.warn("⚠️ Gemini 模型額度可能暫時用完，改跑關鍵字。");
     } else {
       console.error("OpenAI/OpenRouter Error:", error?.response?.data || error);
     }
-    // **出錯才繼續跑關鍵字**
+    // 出錯時才繼續跑關鍵字
   }
 
   // --- Step 1：精準關鍵字 ---
@@ -823,7 +822,7 @@ client.on("messageCreate", async (message) => {
     for (const trigger of item.triggers) {
       if (sanitize(content) === sanitize(trigger)) {
         const reply = item.replies[Math.floor(Math.random() * item.replies.length)];
-        return message.reply(formatReply(reply));
+        return message.reply(`「${reply}」`);
       }
     }
   }
@@ -837,11 +836,12 @@ client.on("messageCreate", async (message) => {
     for (const trigger of item.triggers) {
       if (sanitize(content).includes(sanitize(trigger))) {
         const reply = item.replies[Math.floor(Math.random() * item.replies.length)];
-        return message.reply(formatReply(reply));
+        return message.reply(`「${reply}」`);
       }
     }
   }
 });
+
 
 
  
