@@ -758,8 +758,10 @@ function formatReply(text) {
   return `「${text}」`;
 }
 
+// --- 建立上下文記憶（只記錄最近 5 條訊息） ---
+const chatHistory = [];
+
 client.on("messageCreate", async (message) => {
-  // --- 基礎資料 ---
   const fromBot = message.author.bot;
   const mentionedMe = message.mentions.has(client.user);
   const raw = message.content ?? "";
@@ -773,13 +775,17 @@ client.on("messageCreate", async (message) => {
     content = content.replace(/<@!?(\d+)>/g, "秦煥");
   }
 
+  // --- 更新對話記憶 ---
+  chatHistory.push({ role: "user", content });
+  if (chatHistory.length > 5) chatHistory.shift(); // 只保留最近 5 條
+
   // --- Step 0：AI 回覆 ---
   try {
     const completion = await openai.chat.completions.create({
       model: "openai/gpt-3.5-turbo",
       messages: [
         { role: "system", content: systemPrompt },
-        { role: "user", content },
+        ...chatHistory
       ],
       max_tokens: 120,
       temperature: 0.9,
@@ -793,8 +799,9 @@ client.on("messageCreate", async (message) => {
     const reply = choices[Math.floor(Math.random() * choices.length)];
 
     if (reply) {
-      await message.reply(formatReply(reply));
-      return; // AI 回覆成功後，直接結束，避免進入關鍵字
+      chatHistory.push({ role: "assistant", content: reply });
+      await message.reply(`「${reply}」`);
+      return; // **AI 回覆後，不跑關鍵字**
     }
   } catch (error) {
     if (error.response?.status === 429) {
@@ -802,7 +809,7 @@ client.on("messageCreate", async (message) => {
     } else {
       console.error("OpenAI/OpenRouter Error:", error?.response?.data || error);
     }
-    // **如果錯誤，才繼續執行關鍵字**
+    // **出錯才繼續跑關鍵字**
   }
 
   // --- Step 1：精準關鍵字 ---
@@ -817,6 +824,9 @@ client.on("messageCreate", async (message) => {
   }
 
   // --- Step 2：模糊關鍵字 ---
+  const isCallingBot = mentionedMe;
+  if (!isCallingBot) return;
+
   for (const item of keywordReplies) {
     if (item.exact) continue;
     for (const trigger of item.triggers) {
@@ -827,6 +837,7 @@ client.on("messageCreate", async (message) => {
     }
   }
 });
+
 
  
 // 訊息刪除
