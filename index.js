@@ -796,7 +796,7 @@ client.on("messageCreate", async (message) => {
       temperature: 0.9,
       presence_penalty: 0.5,
       frequency_penalty: 0.7,
-      n: 3, // 生成 3 個備選回覆
+      n: 1, // 生成 3 個備選回覆
     });
 
     const choices = completion.choices.map(c => c.message.content.trim());
