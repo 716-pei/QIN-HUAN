@@ -770,8 +770,8 @@ function sanitize(input) {
 }
 
 // --- 建立上下文記憶（分開記錄） ---
-const chatHistory = [];          // 真正互動（@秦煥 or 煥煥）
-const passiveMentionLog = [];   // 被提到但沒被叫到（含 timestamp）
+const chatHistory = [];
+const passiveMentionLog = [];
 
 const MAX_PASSIVE_LOG = 5;
 const BOT_REPLY_WINDOW_MS = 4000;
@@ -788,6 +788,7 @@ client.on("messageCreate", async (message) => {
 
   const isTalkingAboutMe = !mentionedMe && content.includes("秦煥");
 
+  // --- 📌 記錄被提到但沒被叫的內容 ---
   if (!fromBot && isTalkingAboutMe) {
     const cleaned = sanitize(raw).slice(0, 100);
     passiveMentionLog.push({ role: "user", content: cleaned, timestamp: now });
@@ -795,6 +796,7 @@ client.on("messageCreate", async (message) => {
     return;
   }
 
+  // --- 🤖 若是 BOT 自己的訊息，檢查是否要短回應 ---
   if (fromBot) {
     const recentMention = passiveMentionLog.at(-1);
     const isRecent = recentMention && now - recentMention.timestamp < BOT_REPLY_WINDOW_MS;
@@ -813,12 +815,12 @@ client.on("messageCreate", async (message) => {
             "Content-Type": "application/json"
           },
           body: JSON.stringify({
-            model: "google/gemini-2.0-flash-exp:free", // ✅ 改這裡
+            model: "google/gemini-2.0-flash-exp:free",
             messages: [
               { role: "system", content: systemPrompt },
               ...combined
             ],
-            max_tokens: 35, // ✅ 限短回應
+            max_tokens: 35, // 限制短回覆
             temperature: 0.9,
             presence_penalty: 0.5,
             frequency_penalty: 0.7
@@ -832,24 +834,26 @@ client.on("messageCreate", async (message) => {
           await message.channel.send(reply);
         }
       } catch (error) {
-        console.warn("⚠️ Gemini Flash 回應錯誤：", error);
+        console.warn("⚠️ Gemini Flash 短回應錯誤：", error);
       }
     }
-
     return;
   }
 
+  // --- 🗣️ 沒有叫到就不處理 ---
   if (!mentionedMe && !raw.includes("煥煥")) return;
 
+  // --- 🧼 清除 mention 內容 ---
   if (mentionedMe) {
     content = raw.replace(/<@!?(\d+)>/g, "").replace("秦煥", "").trim();
   }
 
+  // --- 更新聊天上下文 ---
   chatHistory.push({ role: "user", content });
   if (chatHistory.length > 5) chatHistory.shift();
-
   const fullContext = [...passiveMentionLog, ...chatHistory].slice(-5);
 
+  // --- 🤖 正式回覆 ---
   try {
     const completion = await fetch("https://openrouter.ai/api/v1/chat/completions", {
       method: "POST",
@@ -858,12 +862,12 @@ client.on("messageCreate", async (message) => {
         "Content-Type": "application/json"
       },
       body: JSON.stringify({
-        model: "google/gemini-2.0-flash-exp", // ✅ 改這裡
+        model: "google/gemini-2.0-flash-exp:free",
         messages: [
           { role: "system", content: systemPrompt },
           ...fullContext
         ],
-        max_tokens: 120, // ✅ 正常長度回應
+        max_tokens: 120,
         temperature: 0.9,
         presence_penalty: 0.5,
         frequency_penalty: 0.7
@@ -877,57 +881,16 @@ client.on("messageCreate", async (message) => {
       await message.channel.send(reply);
     }
   } catch (error) {
-    console.warn("⚠️ Gemini Flash 主段錯誤：", error);
-  }
-});
+    console.warn("❌ Gemini Flash 正式回覆錯誤：", error);
 
-
-    return; // 無論有沒有接續，都不要再處理
-
-
-  // --- 🗣️ 若沒叫到（@ 或煥煥）就不理會 ---
-  if (!mentionedMe && !raw.includes("煥煥")) return;
-
-if (mentionedMe) {
-  content = raw.replace(/<@!?(\d+)>/g, "").replace("秦煥", "").trim();
-}
-
-  chatHistory.push({ role: "user", content });
-  if (chatHistory.length > 5) chatHistory.shift();
-  const fullContext = [...passiveMentionLog, ...chatHistory].slice(-5);
-
-  // --- 🤖 正式回覆區 ---
-  try {
-   const completion = await openai.chat.completions.create({
-  model: "google/gemini-2.0-flash-exp:free",
-  messages: [
-    { role: "system", content: systemPrompt },
-    ...fullContext,
-  ],
-  max_tokens: 35, // 🩸控制 AI 回覆字數，大約 20 中文字以內
-  temperature: 0.9,
-  presence_penalty: 0.5,
-  frequency_penalty: 0.7,
-});
-    const aiResponse = completion.choices[0].message.content.trim();
-    const reply = formatReply(aiResponse);
-    chatHistory.push({ role: "assistant", content: reply });
-   await message.reply(reply);
-    return;
-  } catch (error) {
-    if (error.response?.status === 429) {
-      console.warn("⚠️ Gemini 額度用完，啟動關鍵字回覆！");
-    } else {
-      console.error("❌ Gemini Error:", error?.response?.data || error);
-    }
-
-    // --- fallback 關鍵字邏輯 ---
+    // --- fallback 關鍵字回應 ---
     const fallback = keywordFallbackReply(content, mentionedMe);
     if (fallback) {
-      return message.reply(`「${fallback}」`);
+      await message.reply(`「${fallback}」`);
     }
   }
 });
+
 
 function keywordFallbackReply(content, isCallingBot) {
   const clean = sanitize(content);
