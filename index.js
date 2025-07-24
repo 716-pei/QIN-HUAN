@@ -783,30 +783,39 @@ function isExplicitMention(message) {
   return message.mentions.has(client.user) || message.content.includes("@秦煥#1066");
 }
 
+const recentlyResponded = new Set(); // 防止重複回應
+
 client.on("messageCreate", async (message) => {
   const raw = message.content ?? "";
   const fromBot = message.author.bot;
   const fromSelf = message.author.id === client.user.id;
-  const mentionedMe = isExplicitMention(message);
-  let content = raw.trim();
+  const mentionRegex = /秦煥/;
 
-// ✅ 只回覆：其他 bot 發送、訊息內含「秦煥」、且它是引用使用者訊息的情況
-if (fromBot && !fromSelf && raw.includes("秦煥") && message.reference) {
-  try {
-    const quotedMessage = await message.channel.messages.fetch(message.reference.messageId);
-    
-    // 判斷被引用訊息是否真的在提秦煥
-    const quotedRaw = quotedMessage?.content ?? "";
-    const quotedFromUser = !quotedMessage.author.bot;
-    const quotedMentionedQinhuan = quotedRaw.includes("秦煥");
+  // ✅ 檢查：其他 Bot + 非自己 + 有提到秦煥 + 引用了某訊息
+  if (fromBot && !fromSelf && mentionRegex.test(raw) && message.reference?.messageId) {
+    try {
+      // 抓被引用的訊息
+      const quotedMessage = await message.channel.messages.fetch(message.reference.messageId);
+      if (!quotedMessage) return;
 
-    if (quotedFromUser && quotedMentionedQinhuan) {
-      // ⬇️ 以下你原本的 Gemini 呼叫可以照搬放這裡
-      content = sanitize(raw).slice(0, 100);
+      // ✅ 檢查：被引用的是人類用戶、內容含「秦煥」
+      const quotedRaw = quotedMessage.content ?? "";
+      const isFromUser = !quotedMessage.author.bot;
+      const quotedMentionedQinhuan = mentionRegex.test(quotedRaw);
+      if (!isFromUser || !quotedMentionedQinhuan) return;
+
+      // ✅ 檢查是否已回應過，避免 spam
+      if (recentlyResponded.has(message.id)) return;
+      recentlyResponded.add(message.id);
+      setTimeout(() => recentlyResponded.delete(message.id), 3000); // 3 秒內不重複回應
+
+      // ✅ 清理內容給 AI 用
+      const content = sanitize(raw).slice(0, 100);
       chatHistory.push({ role: "user", content });
       if (chatHistory.length > 5) chatHistory.shift();
       const fullContext = [...passiveMentionLog, ...chatHistory].slice(-5);
 
+      // ✅ 呼叫 OpenRouter Gemini API
       const completion = await fetch("https://openrouter.ai/api/v1/chat/completions", {
         method: "POST",
         headers: {
@@ -829,18 +838,17 @@ if (fromBot && !fromSelf && raw.includes("秦煥") && message.reference) {
       const result = await completion.json();
       console.log("🧪 AI 回傳原始結果：", JSON.stringify(result, null, 2));
       const aiResponse = result.choices?.[0]?.message?.content?.trim();
+
       if (aiResponse) {
         const reply = formatReply(aiResponse);
-        // ✅ 只回覆這個 bot 的這一則訊息
-        await message.reply(reply);
+        await message.reply(reply); // ✅ 只回覆這個 bot 的訊息
       }
 
-      return; // ⚠️ 記得 return 掉，避免跑到後面主動處理區塊
+      return; // ✅ 結束，避免掉到下面 @mention 主動區塊
+    } catch (err) {
+      console.warn("⚠️ 無法處理引用訊息：", err);
     }
-  } catch (err) {
-    console.warn("⚠️ 無法抓到引用訊息：", err);
   }
-}
 
 
   // ✅ 如果沒有顯式 @秦煥 或 @秦煥#1066，就不主動回覆
