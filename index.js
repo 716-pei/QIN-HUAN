@@ -883,7 +883,7 @@ client.on("messageCreate", async (message) => {
 
 
     return; // 無論有沒有接續，都不要再處理
-  }
+
 
   // --- 🗣️ 若沒叫到（@ 或煥煥）就不理會 ---
   if (!mentionedMe && !raw.includes("煥煥")) return;
