@@ -872,7 +872,7 @@ const mentionedMe = message.mentions.has(client.user) || message.content.include
   if (chatHistory.length > 5) chatHistory.shift();
   const fullContext = [...passiveMentionLog, ...chatHistory].slice(-5);
 
-  try {
+    try {
     const completion = await fetch("https://openrouter.ai/api/v1/chat/completions", {
       method: "POST",
       headers: {
@@ -892,27 +892,28 @@ const mentionedMe = message.mentions.has(client.user) || message.content.include
       })
     });
 
-  let aiResponded = false;
+    let aiResponded = false;
 
-try {
-  const result = await completion.json();
-  console.log("🧪 AI 回傳原始結果：", JSON.stringify(result, null, 2));
+    try {
+      const result = await completion.json();
+      console.log("🧪 AI 回傳原始結果：", JSON.stringify(result, null, 2));
 
-  const aiResponse = result.choices?.[0]?.message?.content?.trim();
-  if (aiResponse) {
-    aiResponded = true;
-    const reply = formatReply(aiResponse);
-    await message.channel.send(reply);
+      const aiResponse = result.choices?.[0]?.message?.content?.trim();
+      if (aiResponse) {
+        aiResponded = true;
+        const reply = formatReply(aiResponse);
+        await message.channel.send(reply);
+      }
+    } catch (error) {
+      aiResponded = false;
+      console.warn("❌ Gemini Flash 正式回覆錯誤：", error);
+      const fallback = keywordFallbackReply(content, mentionedMe ?? false);
+      if (fallback) {
+        await message.reply(`「${fallback}」`);
+      }
+    }
+
   }
-} catch (error) {
-  aiResponded = false;
-  console.warn("❌ Gemini Flash 正式回覆錯誤：", error);
-  const fallback = keywordFallbackReply(content, mentionedMe ?? false);
-  if (fallback) {
-    await message.reply(`「${fallback}」`);
-  }
-}
-});
 
 // --- 精準關鍵字 ---
 if (!aiResponded) {
