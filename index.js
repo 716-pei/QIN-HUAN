@@ -707,15 +707,7 @@ client.once('ready', () => {
 
 ];
 
-// 清理文字
-function sanitize(input) {
-  return input
-    .normalize("NFKD")
-    .replace(/[\p{Emoji}\p{P}\p{S}\p{M}\p{Z}~～\u3000]/gu, "")
-    .replace(/[(（【].*?[)）】]/g, "")
-    .trim()
-    .toLowerCase();
-}
+
 
 // 人設（System Prompt）
 const systemPrompt = `
@@ -762,6 +754,32 @@ const systemPrompt = `
 function formatReply(text) {
   return `「${text}」`;
 }
+
+const { Client, GatewayIntentBits } = require("discord.js");
+const openai = require("openai"); // 或你自己定義的 openai 客戶端
+
+// --- 🔧 防呆文字清理工具 ---
+function sanitize(input) {
+  try {
+    return input
+      ?.normalize("NFKD")
+      .replace(/[\p{Emoji}\p{P}\p{S}\p{M}\p{Z}~～\u3000]/gu, "")
+      .replace(/[(（【].*?[)）】]/g, "")
+      .trim()
+      .toLowerCase();
+  } catch (err) {
+    return input
+      ?.toLowerCase()
+      ?.trim()
+      ?.replace(/[^\w一-龠]/g, "") ?? "";
+  }
+}
+
+// 🌐 Discord bot 建立
+const { Client, GatewayIntentBits } = require("discord.js");
+const openai = require("openai"); // 你的 GPT 客戶端
+// 👇然後才接 bot 本體、on message 事件、reply邏輯等等
+
 
 // --- 建立上下文記憶（分開記錄） ---
 const chatHistory = [];          // 真正互動（@秦煥 or 煥煥）
