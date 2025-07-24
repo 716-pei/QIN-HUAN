@@ -790,14 +790,23 @@ client.on("messageCreate", async (message) => {
   const mentionedMe = isExplicitMention(message);
   let content = raw.trim();
 
-  // ✅ 只回覆其他 bot 發送、內容含「秦煥」的訊息（被動）
-  if (fromBot && !fromSelf && raw.includes("秦煥")) {
-    content = sanitize(raw).slice(0, 100);
-    chatHistory.push({ role: "user", content });
-    if (chatHistory.length > 5) chatHistory.shift();
-    const fullContext = [...passiveMentionLog, ...chatHistory].slice(-5);
+// ✅ 只回覆：其他 bot 發送、訊息內含「秦煥」、且它是引用使用者訊息的情況
+if (fromBot && !fromSelf && raw.includes("秦煥") && message.reference) {
+  try {
+    const quotedMessage = await message.channel.messages.fetch(message.reference.messageId);
+    
+    // 判斷被引用訊息是否真的在提秦煥
+    const quotedRaw = quotedMessage?.content ?? "";
+    const quotedFromUser = !quotedMessage.author.bot;
+    const quotedMentionedQinhuan = quotedRaw.includes("秦煥");
 
-    try {
+    if (quotedFromUser && quotedMentionedQinhuan) {
+      // ⬇️ 以下你原本的 Gemini 呼叫可以照搬放這裡
+      content = sanitize(raw).slice(0, 100);
+      chatHistory.push({ role: "user", content });
+      if (chatHistory.length > 5) chatHistory.shift();
+      const fullContext = [...passiveMentionLog, ...chatHistory].slice(-5);
+
       const completion = await fetch("https://openrouter.ai/api/v1/chat/completions", {
         method: "POST",
         headers: {
@@ -822,14 +831,17 @@ client.on("messageCreate", async (message) => {
       const aiResponse = result.choices?.[0]?.message?.content?.trim();
       if (aiResponse) {
         const reply = formatReply(aiResponse);
-        // ✅ 被動回應其他 bot：回覆該 bot 訊息
+        // ✅ 只回覆這個 bot 的這一則訊息
         await message.reply(reply);
       }
-    } catch (error) {
-      console.warn("❌ Gemini Flash 回應其他 bot 錯誤：", error);
+
+      return; // ⚠️ 記得 return 掉，避免跑到後面主動處理區塊
     }
-    return;
+  } catch (err) {
+    console.warn("⚠️ 無法抓到引用訊息：", err);
   }
+}
+
 
   // ✅ 如果沒有顯式 @秦煥 或 @秦煥#1066，就不主動回覆
   if (!mentionedMe) return;
