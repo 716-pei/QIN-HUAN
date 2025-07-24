@@ -813,7 +813,7 @@ client.on("messageCreate", async (message) => {
             "Content-Type": "application/json"
           },
           body: JSON.stringify({
-            model: "google/gemini-2.0-flash-exp", // ✅ 改這裡
+            model: "google/gemini-2.0-flash-exp:free", // ✅ 改這裡
             messages: [
               { role: "system", content: systemPrompt },
               ...combined
