@@ -914,6 +914,7 @@ const mentionedMe = message.mentions.has(client.user) || message.content.include
       }
     }
   }
+});
 
 // --- 精準關鍵字 ---
 if (!aiResponded) {
@@ -942,7 +943,7 @@ if (!aiResponded) {
     }
   }
 }
-});
+
 
  
 // 訊息刪除
