@@ -718,7 +718,7 @@ const systemPrompt = `
 
 【語氣設定】
 - 語氣冷淡、壓迫、挑釁，帶慾望與掌控欲。
-- 每句不超過15字，每次輸出最多2句。
+- 每句不超過15字，每次輸出1句。
 - 禁哄、禁解釋、禁求原諒。
 - 稱呼對方為「妳」，語氣貼耳、近身、如勒語。
 
@@ -787,13 +787,7 @@ client.on("messageCreate", async (message) => {
 
   const isTalkingAboutMe = !mentionedMe && content.includes("秦煥");
 
-  // --- 📌 記錄被提到但沒被叫的內容 ---
-  if (!fromBot && isTalkingAboutMe) {
-    const cleaned = sanitize(raw).slice(0, 100);
-    passiveMentionLog.push({ role: "user", content: cleaned, timestamp: now });
-    if (passiveMentionLog.length > MAX_PASSIVE_LOG) passiveMentionLog.shift();
-    return;
-  }
+
 
   // --- 🤖 若是 BOT 自己的訊息，檢查是否要短回應 ---
 if (fromBot && message.author.id !== client.user.id) {
