@@ -806,7 +806,7 @@ if (!fromBot && isTalkingAboutMe) {
 
       try {
        const completion = await openai.chat.completions.create({
-  model: "google/gemini-2.0-flash-exp",
+  model: "google/gemini-2.0-flash-exp:free",
   messages: [
     { role: "system", content: systemPrompt },
     ...combined,
@@ -842,7 +842,7 @@ if (mentionedMe) {
   // --- 🤖 正式回覆區 ---
   try {
    const completion = await openai.chat.completions.create({
-  model: "google/gemini-2.0-flash-exp",
+  model: "google/gemini-2.0-flash-exp:free",
   messages: [
     { role: "system", content: systemPrompt },
     ...fullContext,
