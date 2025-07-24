@@ -831,11 +831,16 @@ client.on("messageCreate", async (message) => {
       });
 
       const result = await completion.json();
+        console.log("🔧 OpenRouter 回傳結果（引用）：", result);
       const aiResponse = result.choices?.[0]?.message?.content?.trim();
+
       if (aiResponse) {
         const reply = formatReply(aiResponse);
         await message.reply(reply);
+      } else {
+        await handleKeywordFallback(message, content);
       }
+
       return;
     } catch (err) {
       console.warn("⚠️ 無法處理引用訊息：", err);
@@ -876,15 +881,47 @@ client.on("messageCreate", async (message) => {
     });
 
     const result = await completion.json();
+      console.log("🔧 OpenRouter 回傳結果（提及）：", result);
     const aiResponse = result.choices?.[0]?.message?.content?.trim();
+
     if (aiResponse) {
       const reply = formatReply(aiResponse);
       await message.reply(reply);
+    } else {
+      await handleKeywordFallback(message, content);
     }
   } catch (err) {
     console.error("❌ 無法處理回應：", err);
+    await handleKeywordFallback(message, content); // 捕捉錯誤也用關鍵字處理
   }
 });
+
+
+async function handleKeywordFallback(message, content) {
+  // --- 精準關鍵字 ---
+  for (const item of keywordReplies) {
+    if (!item.exact) continue;
+    for (const trigger of item.triggers) {
+      if (sanitize(content) === sanitize(trigger)) {
+        const reply = randomChoice(item.replies);
+        await message.reply(`「${reply}」`);
+        return;
+      }
+    }
+  }
+
+  // --- 模糊關鍵字 ---
+  for (const item of keywordReplies) {
+    if (item.exact) continue;
+    for (const trigger of item.triggers) {
+      if (sanitize(content).includes(sanitize(trigger))) {
+        const reply = randomChoice(item.replies);
+        await message.reply(`「${reply}」`);
+        return;
+      }
+    }
+  }
+}
 
 // ✅ 補充：訊息刪除
 client.on("messageDelete", (msg) => {
