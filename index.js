@@ -854,8 +854,7 @@ if (mentionedMe) {
   
   if (!content) content = "你在叫我嗎？";
 }
-  // --- 🔍 DEBUG LOG ---
-console.log("🧪 AI 回傳原始結果：", JSON.stringify(result, null, 2));
+
   
   // --- 更新聊天上下文 ---
   chatHistory.push({ role: "user", content });
@@ -882,7 +881,10 @@ console.log("🧪 AI 回傳原始結果：", JSON.stringify(result, null, 2));
         frequency_penalty: 0.7
       })
     });
-
+    
+  // --- 🔍 DEBUG LOG ---
+console.log("🧪 AI 回傳原始結果：", JSON.stringify(result, null, 2));
+    
     const result = await completion.json();
     const aiResponse = result.choices?.[0]?.message?.content?.trim();
     if (aiResponse) {
