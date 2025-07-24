@@ -777,7 +777,7 @@ const MAX_PASSIVE_LOG = 5;
 const BOT_REPLY_WINDOW_MS = 4000;
 
 const fetch = require("node-fetch");
-const OPENROUTER_API_KEY = process.env.OPENAI_API_KEY;
+const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
 
 client.on("messageCreate", async (message) => {
   const now = Date.now();
