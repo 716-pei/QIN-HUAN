@@ -943,4 +943,3 @@ client.on("messageUpdate", (oldMsg, newMsg) => {
 
 // 啟動
 const token = process.env.DISCORD_BOT_TOKEN;
-client.login(token);
