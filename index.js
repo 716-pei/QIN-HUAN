@@ -852,7 +852,7 @@ if (!fromBot && isTalkingAboutMe) {
   temperature: 0.9,
   presence_penalty: 0.5,
   frequency_penalty: 0.7,
-}
+});
     const aiResponse = completion.choices[0].message.content.trim();
     const reply = formatReply(aiResponse);
     chatHistory.push({ role: "assistant", content: reply });
