@@ -797,15 +797,15 @@ client.on("messageCreate", async (message) => {
   }
 
   // --- 🤖 若是 BOT 自己的訊息，檢查是否要短回應 ---
-  if (fromBot) {
-    const recentMention = passiveMentionLog.at(-1);
-    const isRecent = recentMention && now - recentMention.timestamp < BOT_REPLY_WINDOW_MS;
+if (fromBot && message.author.id !== client.user.id) {
+  const recentMention = passiveMentionLog.at(-1);
+  const isRecent = recentMention && now - recentMention.timestamp < BOT_REPLY_WINDOW_MS;
 
-    if (isRecent) {
-      const combined = [
-        { role: "user", content: recentMention.content },
-        { role: "assistant", content: raw }
-      ];
+  if (isRecent) {
+    const combined = [
+      { role: "user", content: recentMention.content },
+      { role: "assistant", content: raw }
+    ];
 
       try {
         const completion = await fetch("https://openrouter.ai/api/v1/chat/completions", {
