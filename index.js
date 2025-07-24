@@ -892,51 +892,53 @@ const mentionedMe = message.mentions.has(client.user) || message.content.include
       })
     });
 
-    const result = await completion.json();
-    console.log("🧪 AI 回傳原始結果：", JSON.stringify(result, null, 2));
-    const aiResponse = result.choices?.[0]?.message?.content?.trim();
-    if (aiResponse) {
-      const reply = formatReply(aiResponse);
-      await message.channel.send(reply);
-    }
-  } catch (error) {
-    console.warn("❌ Gemini Flash 正式回覆錯誤：", error);
-    const fallback = keywordFallbackReply(content, mentionedMe);
-    if (fallback) {
-      await message.reply(`「${fallback}」`);
-    }
+  let aiResponded = false;
+
+try {
+  const result = await completion.json();
+  console.log("🧪 AI 回傳原始結果：", JSON.stringify(result, null, 2));
+
+  const aiResponse = result.choices?.[0]?.message?.content?.trim();
+  if (aiResponse) {
+    aiResponded = true;
+    const reply = formatReply(aiResponse);
+    await message.channel.send(reply);
   }
-});
+} catch (error) {
+  aiResponded = false;
+  console.warn("❌ Gemini Flash 正式回覆錯誤：", error);
+  const fallback = keywordFallbackReply(content, mentionedMe ?? false);
+  if (fallback) {
+    await message.reply(`「${fallback}」`);
+  }
+}
 
-
-
-
-function keywordFallbackReply(content, isCallingBot) {
-  const clean = sanitize(content);
-
-  // Step 1: 精準關鍵字
+// --- 精準關鍵字 ---
+if (!aiResponded) {
   for (const item of keywordReplies) {
     if (!item.exact) continue;
     for (const trigger of item.triggers) {
-      if (sanitize(trigger) === clean) {
-        return item.replies[Math.floor(Math.random() * item.replies.length)];
+      if (sanitize(content) === sanitize(trigger)) {
+        const reply = randomChoice(item.replies);
+        await message.reply(`「${reply}」`);
+        return;
       }
     }
   }
+}
 
-  // Step 2: 模糊關鍵字（只在叫到 bot 時）
-  if (!isCallingBot) return null;
-
+// --- 模糊關鍵字 ---
+if (!aiResponded) {
   for (const item of keywordReplies) {
     if (item.exact) continue;
     for (const trigger of item.triggers) {
-      if (clean.includes(sanitize(trigger))) {
-        return item.replies[Math.floor(Math.random() * item.replies.length)];
+      if (sanitize(content).includes(sanitize(trigger))) {
+        const reply = randomChoice(item.replies);
+        await message.reply(`「${reply}」`);
+        return;
       }
     }
   }
-
-  return null;
 }
 
 
