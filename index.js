@@ -778,15 +778,19 @@ const BOT_REPLY_WINDOW_MS = 4000;
 const fetch = require("node-fetch");
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
 
+// ✅ 判斷是否為「@秦煥」或「@秦煥#1066」提及
+function isExplicitMention(message) {
+  return message.mentions.has(client.user) || message.content.includes("@秦煥#1066");
+}
+
 client.on("messageCreate", async (message) => {
-  const now = Date.now();
   const raw = message.content ?? "";
   const fromBot = message.author.bot;
   const fromSelf = message.author.id === client.user.id;
-  const mentionedMe = message.mentions.has(client.user);
+  const mentionedMe = isExplicitMention(message);
   let content = raw.trim();
 
-  // ✅ 僅當其他 bot 提到「秦煥」時，才會觸發回覆
+  // ✅ 只回覆其他 bot 發送、內容含「秦煥」的訊息（被動）
   if (fromBot && !fromSelf && raw.includes("秦煥")) {
     content = sanitize(raw).slice(0, 100);
     chatHistory.push({ role: "user", content });
@@ -818,7 +822,8 @@ client.on("messageCreate", async (message) => {
       const aiResponse = result.choices?.[0]?.message?.content?.trim();
       if (aiResponse) {
         const reply = formatReply(aiResponse);
-        await message.reply(reply); // ✅ 回覆那則 bot 的訊息
+        // ✅ 被動回應其他 bot：回覆該 bot 訊息
+        await message.reply(reply);
       }
     } catch (error) {
       console.warn("❌ Gemini Flash 回應其他 bot 錯誤：", error);
@@ -826,7 +831,7 @@ client.on("messageCreate", async (message) => {
     return;
   }
 
-  // ✅ 沒有真正 @ 秦煥（mention）時，就不回
+  // ✅ 如果沒有顯式 @秦煥 或 @秦煥#1066，就不主動回覆
   if (!mentionedMe) return;
 
   // ✅ 處理 @mention 清除 & fallback 空訊息
@@ -834,13 +839,13 @@ client.on("messageCreate", async (message) => {
     content = raw
       .replace(/<@!?(\d+)>/g, "")       // 清除使用者 mention
       .replace(/<@&(\d+)>/g, "")        // 清除身分組 mention
-      .replace("秦煥", "")
+      .replace(/秦煥/g, "")            // 清除純文字秦煥
       .trim();
 
     if (!content) content = "你在叫我嗎？";
   }
 
-  // ✅ 處理用戶 @秦煥 的回覆
+  // ✅ 主動回應 @秦煥 的訊息
   chatHistory.push({ role: "user", content });
   if (chatHistory.length > 5) chatHistory.shift();
   const fullContext = [...passiveMentionLog, ...chatHistory].slice(-5);
@@ -880,6 +885,7 @@ client.on("messageCreate", async (message) => {
     }
   }
 });
+
 
 
 
