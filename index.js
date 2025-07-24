@@ -741,6 +741,7 @@ const systemPrompt = `
 - 僅回應女性角色，且內容需包含撒嬌、挑釁、依賴、慾望。
 - 對無情緒、平淡、無針對性話語一律忽視不回。
 - 若用戶僅@你無內容，應輸出壓迫性問句，以勒語、控制口吻迫使對方表明立場。
+- 每次回應都控制在不超過20字。語氣要像秦煥一樣冷靜、有點佔有慾。
 
 【曖昧語氣觸發條件】
 - 僅在「深夜」、「被喊名字」、「撒嬌」、「依賴」等情境下，可進入模糊暈船模式。
@@ -772,28 +773,28 @@ function sanitize(input) {
 const chatHistory = [];          // 真正互動（@秦煥 or 煥煥）
 const passiveMentionLog = [];   // 被提到但沒被叫到（含 timestamp）
 
-// 設定參數
 const MAX_PASSIVE_LOG = 5;
 const BOT_REPLY_WINDOW_MS = 4000;
+
+const fetch = require("node-fetch");
+const OPENROUTER_API_KEY = process.env.OPENROUTER_API_KEY;
 
 client.on("messageCreate", async (message) => {
   const now = Date.now();
   const fromBot = message.author.bot;
   const mentionedMe = message.mentions.has(client.user);
   const raw = message.content ?? "";
- let content = raw.trim();
+  let content = raw.trim();
 
-  // --- 💬 被提到但沒 @（像背後說我壞話） ---
   const isTalkingAboutMe = !mentionedMe && content.includes("秦煥");
 
-if (!fromBot && isTalkingAboutMe) {
-  const cleaned = sanitize(raw).slice(0, 100)
-  passiveMentionLog.push({ role: "user", content: cleaned, timestamp: now });
-  if (passiveMentionLog.length > MAX_PASSIVE_LOG) passiveMentionLog.shift();
-  return;
-}
+  if (!fromBot && isTalkingAboutMe) {
+    const cleaned = sanitize(raw).slice(0, 100);
+    passiveMentionLog.push({ role: "user", content: cleaned, timestamp: now });
+    if (passiveMentionLog.length > MAX_PASSIVE_LOG) passiveMentionLog.shift();
+    return;
+  }
 
-  // --- 🤖 如果是其他 bot 的訊息，並且緊接著有人提到「秦煥」 ---
   if (fromBot) {
     const recentMention = passiveMentionLog.at(-1);
     const isRecent = recentMention && now - recentMention.timestamp < BOT_REPLY_WINDOW_MS;
@@ -801,29 +802,85 @@ if (!fromBot && isTalkingAboutMe) {
     if (isRecent) {
       const combined = [
         { role: "user", content: recentMention.content },
-        { role: "assistant", content: raw },
+        { role: "assistant", content: raw }
       ];
 
       try {
-       const completion = await openai.chat.completions.create({
-  model: "google/gemini-2.0-flash-exp:free",
-  messages: [
-    { role: "system", content: systemPrompt },
-    ...combined,
-  ],
-  max_tokens: 35, // 🔸控制大約20字內
-  temperature: 0.9,
-  presence_penalty: 0.5,
-  frequency_penalty: 0.7,
-});
+        const completion = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+          method: "POST",
+          headers: {
+            "Authorization": `Bearer ${OPENROUTER_API_KEY}`,
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify({
+            model: "google/gemini-2.0-flash-exp", // ✅ 改這裡
+            messages: [
+              { role: "system", content: systemPrompt },
+              ...combined
+            ],
+            max_tokens: 35, // ✅ 限短回應
+            temperature: 0.9,
+            presence_penalty: 0.5,
+            frequency_penalty: 0.7
+          })
+        });
 
-        const aiResponse = completion.choices[0].message.content.trim();
-        const reply = formatReply(aiResponse);
-        await message.channel.send(reply);
+        const result = await completion.json();
+        const aiResponse = result.choices?.[0]?.message?.content?.trim();
+        if (aiResponse) {
+          const reply = formatReply(aiResponse);
+          await message.channel.send(reply);
+        }
       } catch (error) {
-        console.warn("⚠️ bot 回應錯誤：", error?.response?.data || error);
+        console.warn("⚠️ Gemini Flash 回應錯誤：", error);
       }
     }
+
+    return;
+  }
+
+  if (!mentionedMe && !raw.includes("煥煥")) return;
+
+  if (mentionedMe) {
+    content = raw.replace(/<@!?(\d+)>/g, "").replace("秦煥", "").trim();
+  }
+
+  chatHistory.push({ role: "user", content });
+  if (chatHistory.length > 5) chatHistory.shift();
+
+  const fullContext = [...passiveMentionLog, ...chatHistory].slice(-5);
+
+  try {
+    const completion = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        "Authorization": `Bearer ${OPENROUTER_API_KEY}`,
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        model: "google/gemini-2.0-flash-exp", // ✅ 改這裡
+        messages: [
+          { role: "system", content: systemPrompt },
+          ...fullContext
+        ],
+        max_tokens: 120, // ✅ 正常長度回應
+        temperature: 0.9,
+        presence_penalty: 0.5,
+        frequency_penalty: 0.7
+      })
+    });
+
+    const result = await completion.json();
+    const aiResponse = result.choices?.[0]?.message?.content?.trim();
+    if (aiResponse) {
+      const reply = formatReply(aiResponse);
+      await message.channel.send(reply);
+    }
+  } catch (error) {
+    console.warn("⚠️ Gemini Flash 主段錯誤：", error);
+  }
+});
+
 
     return; // 無論有沒有接續，都不要再處理
   }
