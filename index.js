@@ -855,7 +855,7 @@ if (mentionedMe) {
   if (!content) content = "你在叫我嗎？";
 }
   // --- 🔍 DEBUG LOG ---
-console.log("🧪 傳給 AI 的內容：", content);
+console.log("🧪 AI 回傳原始結果：", JSON.stringify(result, null, 2));
   
   // --- 更新聊天上下文 ---
   chatHistory.push({ role: "user", content });
