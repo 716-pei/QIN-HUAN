@@ -787,201 +787,139 @@ const recentlyResponded = new Set(); // 防止重複回應
 function isExplicitMention(message) {
     return message.mentions.has(client.user) || message.content.includes("@秦煥#1066");
 }
-
 client.on("messageCreate", async (message) => {
-                const raw = message.content ?? "";
-                const fromBot = message.author.bot;
-                const fromSelf = message.author.id === client.user.id;
-                const mentionRegex = /秦煥/;
-                const mentionedMe = message.mentions.has(client.user) || message.content.includes("@秦煥#1066");
+  const raw = message.content ?? "";
+  const fromBot = message.author.bot;
+  const fromSelf = message.author.id === client.user.id;
+  const mentionRegex = /秦煥/;
+  const mentionedMe = message.mentions.has(client.user) || message.content.includes("@秦煥#1066");
 
-                // ✅ 檢查：其他 Bot + 非自己 + 有提到秦煥 + 引用了某訊息
-                if (fromBot && !fromSelf && mentionRegex.test(raw) && message.reference?.messageId) {
-                    try {
-                        const quotedMessage = await message.channel.messages.fetch(message.reference.messageId);
-                        if (!quotedMessage) return;
+  // ✅ 處理：Bot 引用使用者提到秦煥的訊息
+  if (fromBot && !fromSelf && mentionRegex.test(raw) && message.reference?.messageId) {
+    try {
+      const quotedMessage = await message.channel.messages.fetch(message.reference.messageId);
+      if (!quotedMessage) return;
 
-                        const quotedRaw = quotedMessage.content ?? "";
-                        const isFromUser = !quotedMessage.author.bot;
-                        const quotedMentionedQinhuan = mentionRegex.test(quotedRaw);
-                        if (!isFromUser || !quotedMentionedQinhuan) return;
+      const quotedRaw = quotedMessage.content ?? "";
+      const isFromUser = !quotedMessage.author.bot;
+      const quotedMentionedQinhuan = mentionRegex.test(quotedRaw);
+      if (!isFromUser || !quotedMentionedQinhuan) return;
 
-                        if (recentlyResponded.has(message.id)) return;
-                        recentlyResponded.add(message.id);
-                        setTimeout(() => recentlyResponded.delete(message.id), 3000);
+      if (recentlyResponded.has(message.id)) return;
+      recentlyResponded.add(message.id);
+      setTimeout(() => recentlyResponded.delete(message.id), 3000);
 
-                        const content = sanitize(raw).slice(0, 100);
-                        chatHistory.push({
-                            role: "user",
-                            content
-                        });
-                        if (chatHistory.length > 5) chatHistory.shift();
-                        const fullContext = [...passiveMentionLog, ...chatHistory].slice(-5);
+      const content = sanitize(raw).slice(0, 100);
+      chatHistory.push({ role: "user", content });
+      if (chatHistory.length > 5) chatHistory.shift();
+      const fullContext = [...passiveMentionLog, ...chatHistory].slice(-5);
 
-                        const completion = await fetch("https://openrouter.ai/api/v1/chat/completions", {
-                            method: "POST",
-                            headers: {
-                                "Authorization": `Bearer ${OPENAI_API_KEY}`,
-                                "Content-Type": "application/json"
-                            },
-                            body: JSON.stringify({
-                                model: "google/gemini-2.0-flash-exp:free",
-                                messages: [{
-                                        role: "system",
-                                        content: systemPrompt
-                                    },
-                                    ...fullContext
-                                ],
-                                max_tokens: 120,
-                                temperature: 0.9,
-                                presence_penalty: 0.5,
-                                frequency_penalty: 0.7
-                            })
-                        });
+      const completion = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${OPENAI_API_KEY}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          model: "google/gemini-2.0-flash-exp:free",
+          messages: [{ role: "system", content: systemPrompt }, ...fullContext],
+          max_tokens: 120,
+          temperature: 0.9,
+          presence_penalty: 0.5,
+          frequency_penalty: 0.7,
+        }),
+      });
 
-                        const result = await completion.json();
-                        console.log("🧪 AI 回傳原始結果：", JSON.stringify(result, null, 2));
-                        const aiResponse = result.choices?.[0]?.message?.content?.trim();
-                        if (aiResponse) {
-                            const reply = formatReply(aiResponse);
-                            await message.reply(reply);
-                        }
+      const result = await completion.json();
+      const aiResponse = result.choices?.[0]?.message?.content?.trim();
+      if (aiResponse) {
+        const reply = formatReply(aiResponse);
+        await message.reply(reply);
+      }
+      return;
+    } catch (err) {
+      console.warn("⚠️ 無法處理引用訊息：", err);
+      return;
+    }
+  }
 
-                        return;
-                    } catch (err) {
-                        console.warn("⚠️ 無法處理引用訊息：", err);
-                        return;
-                    }
-                }
+  // ✅ 提及秦煥才回應
+  if (!mentionedMe) return;
 
-                // ✅ 沒有提及就跳過
-                if (!mentionedMe) return;
+  let content = raw
+    .replace(/<@!?(\d+)>/g, "")
+    .replace(/<@&(\d+)>/g, "")
+    .replace(/秦煥/g, "")
+    .trim();
 
-                // ✅ 清除提及與 fallback
-                let content = raw
-                    .replace(/<@!?(\d+)>/g, "")
-                    .replace(/<@&(\d+)>/g, "")
-                    .replace(/秦煥/g, "")
-                    .trim();
+  if (!content) content = "你在叫我嗎？";
 
-                if (!content) content = "你在叫我嗎？";
+  chatHistory.push({ role: "user", content });
+  if (chatHistory.length > 5) chatHistory.shift();
+  const fullContext = [...passiveMentionLog, ...chatHistory].slice(-5);
 
-                chatHistory.push({
-                    role: "user",
-                    content
-                });
-                if (chatHistory.length > 5) chatHistory.shift();
-                const fullContext = [...passiveMentionLog, ...chatHistory].slice(-5);
+  try {
+    const completion = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${OPENAI_API_KEY}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        model: "google/gemini-2.0-flash-exp:free",
+        messages: [{ role: "system", content: systemPrompt }, ...fullContext],
+        max_tokens: 120,
+        temperature: 0.9,
+        presence_penalty: 0.5,
+        frequency_penalty: 0.7,
+      }),
+    });
 
-                try {
-                    const completion = await fetch("https://openrouter.ai/api/v1/chat/completions", {
-                        method: "POST",
-                        headers: {
-                            "Authorization": `Bearer ${OPENAI_API_KEY}`,
-                            "Content-Type": "application/json"
-                        },
-                        body: JSON.stringify({
-                            model: "google/gemini-2.0-flash-exp:free",
-                            messages: [{
-                                    role: "system",
-                                    content: systemPrompt
-                                },
-                                ...fullContext
-                            ],
-                            max_tokens: 120,
-                            temperature: 0.9,
-                            presence_penalty: 0.5,
-                            frequency_penalty: 0.7
-                        })
-                    });
+    const result = await completion.json();
+    const aiResponse = result.choices?.[0]?.message?.content?.trim();
+    if (aiResponse) {
+      const reply = formatReply(aiResponse);
+      await message.reply(reply);
+    }
+  } catch (err) {
+    console.error("❌ 無法處理回應：", err);
+  }
+});
 
-                    client.on("messageCreate", async (message) => {
-                        if (message.author.bot) return;
+// ✅ 補充：訊息刪除
+client.on("messageDelete", (msg) => {
+  if (
+    !msg.partial &&
+    msg.content &&
+    typeof msg.content === "string" &&
+    msg.content.includes("秦煥")
+  ) {
+    const deletedReplies = [
+      "「刪了？呵……你以為我會沒看到？那你太晚了。」",
+      "「訊息收回的那一瞬間，我就記下你怕什麼了。」"
+    ];
+    const reply = deletedReplies[Math.floor(Math.random() * deletedReplies.length)];
+    msg.channel.send(reply);
+  }
+});
 
-                        const content = message.content.trim();
-                        let aiResponded = false;
-
-                        try {
-                            // 🌟 主動 AI 回覆區塊
-                            const completion = await fetch("你的 API URL", {
-                                /* ...略 */
-                            });
-                            const result = await completion.json();
-                            console.log("✨ 主動 AI 回傳：", JSON.stringify(result, null, 2));
-
-                            const aiResponse = result.choices?.[0]?.message?.content?.trim();
-                            if (aiResponse) {
-                                const reply = formatReply(aiResponse);
-                                await message.reply(reply);
-                                aiResponded = true; // ✅ 記得設 true
-                            }
-                        } catch (err) {
-                            console.error("❌ 無法主動回覆：", err);
-                        }
-
-                        // ✅ 關鍵字回覆補充區塊（都在 async 裡！）
-                        if (!aiResponded) {
-                            for (const item of keywordReplies) {
-                                if (!item.exact) continue;
-                                for (const trigger of item.triggers) {
-                                    if (sanitize(content) === sanitize(trigger)) {
-                                        const reply = randomChoice(item.replies);
-                                        await message.reply(`「${reply}」`);
-                                        return;
-                                    }
-                                }
-                            }
-                        }
-
-                        if (!aiResponded) {
-                            for (const item of keywordReplies) {
-                                if (item.exact) continue;
-                                for (const trigger of item.triggers) {
-                                    if (sanitize(content).includes(sanitize(trigger))) {
-                                        const reply = randomChoice(item.replies);
-                                        await message.reply(`「${reply}」`);
-                                        return;
-                                    }
-                                }
-                            }
-                        }
-                    }); // ✅ 正確：這才是 client.on 的真正結尾！
-
-
-                    // 訊息刪除
-                    client.on("messageDelete", (msg) => {
-                        if (
-                            !msg.partial &&
-                            msg.content &&
-                            typeof msg.content === "string" &&
-                            msg.content.includes("秦煥")
-                        ) {
-                            const deletedReplies = [
-                                "「刪了？呵……你以為我會沒看到？那你太晚了。」",
-                                "「訊息收回的那一瞬間，我就記下你怕什麼了。」"
-                            ];
-                            const reply = deletedReplies[Math.floor(Math.random() * deletedReplies.length)];
-                            msg.channel.send(reply);
-                        }
-                    });
-
-                    // 訊息編輯
-                    client.on("messageUpdate", (oldMsg, newMsg) => {
-                        if (
-                            !oldMsg.partial &&
-                            oldMsg.content &&
-                            newMsg.content &&
-                            typeof oldMsg.content === "string" &&
-                            typeof newMsg.content === "string" &&
-                            oldMsg.content !== newMsg.content &&
-                            oldMsg.content.includes("秦煥") &&
-                            newMsg.content.includes("秦煥")
-                        ) {
-                            const editedReplies = [
-                                "「改了就乾淨了？錯，一個字都逃不掉，我早就看穿你想說什麼。」",
-                                "「你編輯的不是字，是你試圖掩蓋的軟弱，對吧？」"
-                            ];
-                            const reply = editedReplies[Math.floor(Math.random() * editedReplies.length)];
-                            newMsg.channel.send(reply);
-                        }
-                    });
+// ✅ 補充：訊息編輯
+client.on("messageUpdate", (oldMsg, newMsg) => {
+  if (
+    !oldMsg.partial &&
+    oldMsg.content &&
+    newMsg.content &&
+    typeof oldMsg.content === "string" &&
+    typeof newMsg.content === "string" &&
+    oldMsg.content !== newMsg.content &&
+    oldMsg.content.includes("秦煥") &&
+    newMsg.content.includes("秦煥")
+  ) {
+    const editedReplies = [
+      "「改了就乾淨了？錯，一個字都逃不掉，我早就看穿你想說什麼。」",
+      "「你編輯的不是字，是你試圖掩蓋的軟弱，對吧？」"
+    ];
+    const reply = editedReplies[Math.floor(Math.random() * editedReplies.length)];
+    newMsg.channel.send(reply);
+  }
+});
