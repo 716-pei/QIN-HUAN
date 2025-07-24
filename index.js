@@ -882,10 +882,12 @@ if (mentionedMe) {
       })
     });
     
-  // --- 🔍 DEBUG LOG ---
-console.log("🧪 AI 回傳原始結果：", JSON.stringify(result, null, 2));
+
     
     const result = await completion.json();
+      // --- 🔍 DEBUG LOG ---
+console.log("🧪 AI 回傳原始結果：", JSON.stringify(result, null, 2));
+    
     const aiResponse = result.choices?.[0]?.message?.content?.trim();
     if (aiResponse) {
       const reply = formatReply(aiResponse);
