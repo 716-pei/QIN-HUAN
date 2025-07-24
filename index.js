@@ -844,8 +844,14 @@ if (fromBot && message.author.id !== client.user.id) {
  if (!mentionedMe && !raw.includes("煥煥") && !raw.includes("秦煥")) return;
 
   // --- 🧼 清除 mention 內容 ---
- if (mentionedMe) {
-  content = raw.replace(/<@!?(\d+)>/g, "").replace("秦煥", "").trim();
+if (mentionedMe) {
+  // 清除所有使用者 / 身分組 mention 和「秦煥」
+  content = raw
+    .replace(/<@!?(\d+)>/g, "")       // 清除使用者 mention
+    .replace(/<@&(\d+)>/g, "")        // ✅ 清除身分組 mention
+    .replace("秦煥", "")
+    .trim();
+  
   if (!content) content = "你在叫我嗎？";
 }
   // --- 🔍 DEBUG LOG ---
