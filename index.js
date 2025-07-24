@@ -787,7 +787,7 @@ client.on("messageCreate", async (message) => {
   const isTalkingAboutMe = !mentionedMe && content.includes("秦煥");
 
 if (!fromBot && isTalkingAboutMe) {
-  const cleaned = sanitize(raw, 100); // 最多100字
+  const cleaned = sanitize(raw).slice(0, 100)
   passiveMentionLog.push({ role: "user", content: cleaned, timestamp: now });
   if (passiveMentionLog.length > MAX_PASSIVE_LOG) passiveMentionLog.shift();
   return;
@@ -827,13 +827,13 @@ if (!fromBot && isTalkingAboutMe) {
 
     return; // 無論有沒有接續，都不要再處理
   }
-});
+}
 
   // --- 🗣️ 若沒叫到（@ 或煥煥）就不理會 ---
   if (!mentionedMe && !raw.includes("煥煥")) return;
 
   if (mentionedMe) {
-   let content = raw.trim(/<@!?(\d+)>/g, "秦煥");
+  let content = raw.replace(/<@!?(\d+)>/g, "").replace("秦煥", "").trim();
   }
 
   chatHistory.push({ role: "user", content });
@@ -852,11 +852,11 @@ if (!fromBot && isTalkingAboutMe) {
   temperature: 0.9,
   presence_penalty: 0.5,
   frequency_penalty: 0.7,
-});
+}
     const aiResponse = completion.choices[0].message.content.trim();
     const reply = formatReply(aiResponse);
     chatHistory.push({ role: "assistant", content: reply });
-    await message.reply(`「${reply}」`);
+   await message.reply(reply);
     return;
   } catch (error) {
     if (error.response?.status === 429) {
@@ -941,5 +941,3 @@ client.on("messageUpdate", (oldMsg, newMsg) => {
   }
 });
 
-// 啟動
-const token = process.env.DISCORD_BOT_TOKEN;
