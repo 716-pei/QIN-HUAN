@@ -763,90 +763,131 @@ function formatReply(text) {
   return `「${text}」`;
 }
 
-// --- 建立上下文記憶（只記錄最近 5 條訊息） ---
-const chatHistory = [];
+// --- 建立上下文記憶（分開記錄） ---
+const chatHistory = [];          // 真正互動（@秦煥 or 煥煥）
+const passiveMentionLog = [];   // 被提到但沒被叫到（含 timestamp）
 
 client.on("messageCreate", async (message) => {
   const fromBot = message.author.bot;
   const mentionedMe = message.mentions.has(client.user);
   const raw = message.content ?? "";
   let content = raw.trim();
+  const now = Date.now();
 
-  // 只回覆 @秦煥 或 @煥煥
+  // --- 💬 被說到但沒被叫出來（被八卦） ---
+  const isTalkingAboutMe = !mentionedMe && content.includes("秦煥");
+  if (!fromBot && isTalkingAboutMe) {
+    passiveMentionLog.push({ role: "user", content: raw, timestamp: now });
+    if (passiveMentionLog.length > 5) passiveMentionLog.shift();
+    return;
+  }
+
+  // --- 🤖 若是別的 bot 回話，檢查是否是剛好接到被提到秦煥的串 ---
+  if (fromBot) {
+    const recentMention = passiveMentionLog.at(-1);
+    if (recentMention && now - recentMention.timestamp < 4000) {
+      const combined = [
+        { role: "user", content: recentMention.content },
+        { role: "assistant", content: raw },
+      ];
+
+      try {
+        const completion = await openai.chat.completions.create({
+          model: "google/gemini-2.0-flash-exp:free",
+          messages: [
+            { role: "system", content: systemPrompt },
+            ...combined,
+          ],
+          max_tokens: 120,
+          temperature: 0.9,
+          presence_penalty: 0.5,
+          frequency_penalty: 0.7,
+        });
+
+        const aiResponse = completion.choices[0].message.content.trim();
+        const reply = formatReply(aiResponse);
+        message.channel.send(reply);
+      } catch (error) {
+        console.warn("⚠️ bot回應串錯誤：", error?.response?.data || error);
+      }
+
+      return;
+    }
+    return;
+  }
+
+  // --- 🗣️ 若沒叫到（@ 或煥煥）就不理會 ---
   if (!mentionedMe && !raw.includes("煥煥")) return;
 
-  // 把 <@12345> mention 換成「秦煥」
   if (mentionedMe) {
     content = content.replace(/<@!?(\d+)>/g, "秦煥");
   }
 
-// --- 更新對話記憶 ---
-if (content.length > 0) {
   chatHistory.push({ role: "user", content });
   if (chatHistory.length > 5) chatHistory.shift();
-}
+  const fullContext = [...passiveMentionLog, ...chatHistory].slice(-5);
 
-// --- 呼叫 Gemini Flash ---
-const completion = await openai.chat.completions.create({
-  model: "google/gemini-2.0-flash-exp:free",
-  messages: [
-    { role: "system", content: systemPrompt },
-    ...chatHistory,
-  ],
-  max_tokens: 120,
-  temperature: 0.9,
-  presence_penalty: 0.5,
-  frequency_penalty: 0.7,
-});
+  // --- 🤖 正式回覆區 ---
+  try {
+    const completion = await openai.chat.completions.create({
+      model: "google/gemini-2.0-flash-exp:free",
+      messages: [
+        { role: "system", content: systemPrompt },
+        ...fullContext,
+      ],
+      max_tokens: 120,
+      temperature: 0.9,
+      presence_penalty: 0.5,
+      frequency_penalty: 0.7,
+    });
 
-// --- 包上「」回傳 ---
-const aiResponse = completion.choices[0].message.content.trim();
-const reply = formatReply(aiResponse);
-message.reply(reply);
-
-    const choices = completion.choices.map(c => c.message.content.trim());
-    const reply = choices[Math.floor(Math.random() * choices.length)];
-
-    if (reply) {
-      chatHistory.push({ role: "assistant", content: reply });
-      await message.reply(`「${reply}」`);
-      return; // **AI 回覆後，不跑關鍵字**
-    }
+    const aiResponse = completion.choices[0].message.content.trim();
+    const reply = formatReply(aiResponse);
+    chatHistory.push({ role: "assistant", content: reply });
+    await message.reply(`「${reply}」`);
+    return;
   } catch (error) {
     if (error.response?.status === 429) {
-      console.warn("⚠️ Gemini 模型額度可能暫時用完，改跑關鍵字。");
+      console.warn("⚠️ Gemini 額度用完，啟動關鍵字回覆！");
     } else {
-      console.error("OpenAI/OpenRouter Error:", error?.response?.data || error);
+      console.error("❌ Gemini Error:", error?.response?.data || error);
     }
-    // 出錯時才繼續跑關鍵字
-  }
 
-  // --- Step 1：精準關鍵字 ---
+    // --- fallback 關鍵字邏輯 ---
+    const fallback = keywordFallbackReply(content, mentionedMe);
+    if (fallback) {
+      return message.reply(`「${fallback}」`);
+    }
+  }
+});
+
+function keywordFallbackReply(content, isCallingBot) {
+  const clean = sanitize(content);
+
+  // Step 1: 精準關鍵字
   for (const item of keywordReplies) {
     if (!item.exact) continue;
     for (const trigger of item.triggers) {
-      if (sanitize(content) === sanitize(trigger)) {
-        const reply = item.replies[Math.floor(Math.random() * item.replies.length)];
-        return message.reply(`「${reply}」`);
+      if (sanitize(trigger) === clean) {
+        return item.replies[Math.floor(Math.random() * item.replies.length)];
       }
     }
   }
 
-  // --- Step 2：模糊關鍵字 ---
-  const isCallingBot = mentionedMe;
-  if (!isCallingBot) return;
+  // Step 2: 模糊關鍵字（只在叫到 bot 時）
+  if (!isCallingBot) return null;
 
   for (const item of keywordReplies) {
     if (item.exact) continue;
     for (const trigger of item.triggers) {
-      if (sanitize(content).includes(sanitize(trigger))) {
-        const reply = item.replies[Math.floor(Math.random() * item.replies.length)];
-        return message.reply(`「${reply}」`);
+      if (clean.includes(sanitize(trigger))) {
+        return item.replies[Math.floor(Math.random() * item.replies.length)];
       }
     }
   }
-});
 
+  return null;
+}
 
 
  
