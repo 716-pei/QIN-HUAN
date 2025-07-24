@@ -771,12 +771,6 @@ function sanitize(input) {
     .toLowerCase();
 }
 
-// 🌐 Discord bot 建立
-const { Client, GatewayIntentBits } = require("discord.js");
-const openai = require("openai"); // 你的 GPT 客戶端
-// 👇然後才接 bot 本體、on message 事件、reply邏輯等等
-
-
 // --- 建立上下文記憶（分開記錄） ---
 const chatHistory = [];          // 真正互動（@秦煥 or 煥煥）
 const passiveMentionLog = [];   // 被提到但沒被叫到（含 timestamp）
