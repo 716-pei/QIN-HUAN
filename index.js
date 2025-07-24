@@ -780,81 +780,71 @@ const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
 
 client.on("messageCreate", async (message) => {
   const now = Date.now();
-  const fromBot = message.author.bot;
-  const mentionedMe = message.mentions.has(client.user);
   const raw = message.content ?? "";
+  const fromBot = message.author.bot;
+  const fromSelf = message.author.id === client.user.id;
+  const mentionedMe = message.mentions.has(client.user);
   let content = raw.trim();
 
- const isTalkingAboutMe = !mentionedMe && (
-  content.includes("秦煥") || content.includes("@秦煥")
-);
+  // ✅ 僅當其他 bot 提到「秦煥」時，才會觸發回覆
+  if (fromBot && !fromSelf && raw.includes("秦煥")) {
+    content = sanitize(raw).slice(0, 100);
+    chatHistory.push({ role: "user", content });
+    if (chatHistory.length > 5) chatHistory.shift();
+    const fullContext = [...passiveMentionLog, ...chatHistory].slice(-5);
 
+    try {
+      const completion = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+        method: "POST",
+        headers: {
+          "Authorization": `Bearer ${OPENAI_API_KEY}`,
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          model: "google/gemini-2.0-flash-exp:free",
+          messages: [
+            { role: "system", content: systemPrompt },
+            ...fullContext
+          ],
+          max_tokens: 120,
+          temperature: 0.9,
+          presence_penalty: 0.5,
+          frequency_penalty: 0.7
+        })
+      });
 
-
- // --- 📌 若是其他 Bot 提到秦煥，也直接觸發回應 ---
-if (fromBot && isTalkingAboutMe && message.author.id !== client.user.id) {
-  content = sanitize(raw).slice(0, 100);
-
-  chatHistory.push({ role: "user", content });
-  if (chatHistory.length > 5) chatHistory.shift();
-  const fullContext = [...passiveMentionLog, ...chatHistory].slice(-5);
-
-  try {
-    const completion = await fetch("https://openrouter.ai/api/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        "Authorization": `Bearer ${OPENAI_API_KEY}`,
-        "Content-Type": "application/json"
-      },
-      body: JSON.stringify({
-        model: "google/gemini-2.0-flash-exp:free",
-        messages: [
-          { role: "system", content: systemPrompt },
-          ...fullContext
-        ],
-        max_tokens: 120,
-        temperature: 0.9,
-        presence_penalty: 0.5,
-        frequency_penalty: 0.7
-      })
-    });
-
-    const result = await completion.json();
-    const aiResponse = result.choices?.[0]?.message?.content?.trim();
-    if (aiResponse) {
-      const reply = formatReply(aiResponse);
-      await message.channel.send(reply);
+      const result = await completion.json();
+      console.log("🧪 AI 回傳原始結果：", JSON.stringify(result, null, 2));
+      const aiResponse = result.choices?.[0]?.message?.content?.trim();
+      if (aiResponse) {
+        const reply = formatReply(aiResponse);
+        await message.reply(reply); // ✅ 回覆那則 bot 的訊息
+      }
+    } catch (error) {
+      console.warn("❌ Gemini Flash 回應其他 bot 錯誤：", error);
     }
-  } catch (error) {
-    console.warn("❌ Gemini Flash 回應其他 bot 錯誤：", error);
+    return;
   }
 
-  return;
-}
+  // ✅ 沒有真正 @ 秦煥（mention）時，就不回
+  if (!mentionedMe) return;
 
+  // ✅ 處理 @mention 清除 & fallback 空訊息
+  if (mentionedMe) {
+    content = raw
+      .replace(/<@!?(\d+)>/g, "")       // 清除使用者 mention
+      .replace(/<@&(\d+)>/g, "")        // 清除身分組 mention
+      .replace("秦煥", "")
+      .trim();
 
-  // --- 🗣️ 沒有叫到就不處理 ---
- if (!mentionedMe && !raw.includes("煥煥") && !raw.includes("秦煥")) return;
+    if (!content) content = "你在叫我嗎？";
+  }
 
-  // --- 🧼 清除 mention 內容 ---
-if (mentionedMe) {
-  // 清除所有使用者 / 身分組 mention 和「秦煥」
-  content = raw
-    .replace(/<@!?(\d+)>/g, "")       // 清除使用者 mention
-    .replace(/<@&(\d+)>/g, "")        // ✅ 清除身分組 mention
-    .replace("秦煥", "")
-    .trim();
-  
-  if (!content) content = "你在叫我嗎？";
-}
-
-  
-  // --- 更新聊天上下文 ---
+  // ✅ 處理用戶 @秦煥 的回覆
   chatHistory.push({ role: "user", content });
   if (chatHistory.length > 5) chatHistory.shift();
   const fullContext = [...passiveMentionLog, ...chatHistory].slice(-5);
 
-  // --- 🤖 正式回覆 ---
   try {
     const completion = await fetch("https://openrouter.ai/api/v1/chat/completions", {
       method: "POST",
@@ -874,13 +864,9 @@ if (mentionedMe) {
         frequency_penalty: 0.7
       })
     });
-    
 
-    
     const result = await completion.json();
-      // --- 🔍 DEBUG LOG ---
-console.log("🧪 AI 回傳原始結果：", JSON.stringify(result, null, 2));
-    
+    console.log("🧪 AI 回傳原始結果：", JSON.stringify(result, null, 2));
     const aiResponse = result.choices?.[0]?.message?.content?.trim();
     if (aiResponse) {
       const reply = formatReply(aiResponse);
@@ -888,14 +874,13 @@ console.log("🧪 AI 回傳原始結果：", JSON.stringify(result, null, 2));
     }
   } catch (error) {
     console.warn("❌ Gemini Flash 正式回覆錯誤：", error);
-
-    // --- fallback 關鍵字回應 ---
     const fallback = keywordFallbackReply(content, mentionedMe);
     if (fallback) {
       await message.reply(`「${fallback}」`);
     }
   }
 });
+
 
 
 function keywordFallbackReply(content, isCallingBot) {
