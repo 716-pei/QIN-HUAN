@@ -904,7 +904,8 @@ const mentionedMe = message.mentions.has(client.user) || message.content.include
         const reply = formatReply(aiResponse);
         await message.channel.send(reply);
       }
-    } catch (error) {
+    } 
+    catch (error) {
       aiResponded = false;
       console.warn("❌ Gemini Flash 正式回覆錯誤：", error);
       const fallback = keywordFallbackReply(content, mentionedMe ?? false);
@@ -912,7 +913,6 @@ const mentionedMe = message.mentions.has(client.user) || message.content.include
         await message.reply(`「${fallback}」`);
       }
     }
-
   }
 
 // --- 精準關鍵字 ---
@@ -942,7 +942,7 @@ if (!aiResponded) {
     }
   }
 }
-
+});
 
  
 // 訊息刪除
