@@ -777,7 +777,7 @@ const MAX_PASSIVE_LOG = 5;
 const BOT_REPLY_WINDOW_MS = 4000;
 
 const fetch = require("node-fetch");
-const OPENROUTER_API_KEY = process.env.OPENROUTER_API_KEY;
+const OPENROUTER_API_KEY = process.env.OPENAI_API_KEY;
 
 client.on("messageCreate", async (message) => {
   const now = Date.now();
@@ -811,7 +811,7 @@ if (fromBot && message.author.id !== client.user.id) {
         const completion = await fetch("https://openrouter.ai/api/v1/chat/completions", {
           method: "POST",
           headers: {
-            "Authorization": `Bearer ${OPENROUTER_API_KEY}`,
+            "Authorization": `Bearer ${OPENAI_API_KEY}`,
             "Content-Type": "application/json"
           },
           body: JSON.stringify({
@@ -866,7 +866,7 @@ if (mentionedMe) {
     const completion = await fetch("https://openrouter.ai/api/v1/chat/completions", {
       method: "POST",
       headers: {
-        "Authorization": `Bearer ${OPENROUTER_API_KEY}`,
+        "Authorization": `Bearer ${OPENAI_API_KEY}`,
         "Content-Type": "application/json"
       },
       body: JSON.stringify({
