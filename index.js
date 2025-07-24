@@ -882,45 +882,56 @@ client.on("messageCreate", async (message) => {
       })
     });
 
+client.on("messageCreate", async (message) => {
+  if (message.author.bot) return;
+
+  const content = message.content.trim();
+  let aiResponded = false;
+
+  try {
+    // 🌟 主動 AI 回覆區塊
+    const completion = await fetch("你的 API URL", { /* ...略 */ });
     const result = await completion.json();
     console.log("✨ 主動 AI 回傳：", JSON.stringify(result, null, 2));
+
     const aiResponse = result.choices?.[0]?.message?.content?.trim();
     if (aiResponse) {
       const reply = formatReply(aiResponse);
       await message.reply(reply);
+      aiResponded = true; // ✅ 記得設 true
     }
   } catch (err) {
     console.error("❌ 無法主動回覆：", err);
   }
-}); // 👈 這一行是你的 `client.on(...)` 大括號結尾
 
-// --- 精準關鍵字 ---
-if (!aiResponded) {
-  for (const item of keywordReplies) {
-    if (!item.exact) continue;
-    for (const trigger of item.triggers) {
-      if (sanitize(content) === sanitize(trigger)) {
-        const reply = randomChoice(item.replies);
-        await message.reply(`「${reply}」`);
-        return;
+  // ✅ 關鍵字回覆補充區塊（都在 async 裡！）
+  if (!aiResponded) {
+    for (const item of keywordReplies) {
+      if (!item.exact) continue;
+      for (const trigger of item.triggers) {
+        if (sanitize(content) === sanitize(trigger)) {
+          const reply = randomChoice(item.replies);
+          await message.reply(`「${reply}」`);
+          return;
+        }
       }
     }
   }
-}
 
-// --- 模糊關鍵字 ---
-if (!aiResponded) {
-  for (const item of keywordReplies) {
-    if (item.exact) continue;
-    for (const trigger of item.triggers) {
-      if (sanitize(content).includes(sanitize(trigger))) {
-        const reply = randomChoice(item.replies);
-        await message.reply(`「${reply}」`);
-        return;
+  if (!aiResponded) {
+    for (const item of keywordReplies) {
+      if (item.exact) continue;
+      for (const trigger of item.triggers) {
+        if (sanitize(content).includes(sanitize(trigger))) {
+          const reply = randomChoice(item.replies);
+          await message.reply(`「${reply}」`);
+          return;
+        }
       }
     }
   }
-}
+}); // ✅ 正確：這才是 client.on 的真正結尾！
+
  
 // 訊息刪除
 client.on("messageDelete", (msg) => {
