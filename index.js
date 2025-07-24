@@ -781,7 +781,7 @@ client.on("messageCreate", async (message) => {
   const fromBot = message.author.bot;
   const mentionedMe = message.mentions.has(client.user);
   const raw = message.content ?? "";
-  const content = raw.trim();
+ let content = raw.trim();
 
   // --- 💬 被提到但沒 @（像背後說我壞話） ---
   const isTalkingAboutMe = !mentionedMe && content.includes("秦煥");
@@ -827,14 +827,13 @@ if (!fromBot && isTalkingAboutMe) {
 
     return; // 無論有沒有接續，都不要再處理
   }
-}
 
   // --- 🗣️ 若沒叫到（@ 或煥煥）就不理會 ---
   if (!mentionedMe && !raw.includes("煥煥")) return;
 
-  if (mentionedMe) {
-  let content = raw.replace(/<@!?(\d+)>/g, "").replace("秦煥", "").trim();
-  }
+if (mentionedMe) {
+  content = raw.replace(/<@!?(\d+)>/g, "").replace("秦煥", "").trim();
+}
 
   chatHistory.push({ role: "user", content });
   if (chatHistory.length > 5) chatHistory.shift();
