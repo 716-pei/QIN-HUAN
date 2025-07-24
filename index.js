@@ -778,18 +778,20 @@ const BOT_REPLY_WINDOW_MS = 4000;
 const fetch = require("node-fetch");
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
 
+const recentlyResponded = new Set(); // 防止重複回應
+
 // ✅ 判斷是否為「@秦煥」或「@秦煥#1066」提及
 function isExplicitMention(message) {
   return message.mentions.has(client.user) || message.content.includes("@秦煥#1066");
 }
-
-const recentlyResponded = new Set(); // 防止重複回應
 
 client.on("messageCreate", async (message) => {
   const raw = message.content ?? "";
   const fromBot = message.author.bot;
   const fromSelf = message.author.id === client.user.id;
   const mentionRegex = /秦煥/;
+const mentionedMe = message.mentions.has(client.user) || message.content.includes("@秦煥#1066");
+
 
   // ✅ 檢查：其他 Bot + 非自己 + 有提到秦煥 + 引用了某訊息
   if (fromBot && !fromSelf && mentionRegex.test(raw) && message.reference?.messageId) {
