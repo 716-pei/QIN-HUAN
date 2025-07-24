@@ -1,23 +1,24 @@
-// 開頭 (Express + Discord client)
-const express = require('express');
-const app = express();
-app.get('/', (req, res) => res.send('秦煥在線上～陪你貼貼(*´∀`)~♥'));
-const PORT = process.env.PORT || 3000;
-app.listen(PORT, '0.0.0.0', () => {
-  console.log(`✅ 秦喚醒著喔！伺服器在 ${PORT} 上啟動成功`);
-});
-
+// --- 環境變數與套件 ---
 require('dotenv').config();
+const express = require('express');
 const { Client, GatewayIntentBits } = require('discord.js');
-const { OpenAI } = require("openai");
+const { OpenAI } = require('openai');
 
-// 使用 OpenRouter API
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,  // ← 若要改名，記得改 .env & 這裡
-  baseURL: "https://openrouter.ai/api/v1",
+// --- 啟動 Express (存活檢測用) ---
+const app = express();
+const PORT = process.env.PORT || 3000;
+app.get('/', (req, res) => res.send('秦煥在線上～陪你貼貼(*´∀`)~♥'));
+app.listen(PORT, '0.0.0.0', () => {
+  console.log(`✅ 伺服器在 ${PORT} 埠口啟動成功`);
 });
 
-// 建立 Discord Client
+// --- 使用 OpenRouter API ---
+const openai = new OpenAI({
+  apiKey: process.env.OPENAI_API_KEY,  // .env 中必須設定 OPENAI_API_KEY
+  baseURL: 'https://openrouter.ai/api/v1',
+});
+
+// --- 建立 Discord Client ---
 const client = new Client({
   intents: [
     GatewayIntentBits.Guilds,
@@ -27,9 +28,11 @@ const client = new Client({
 });
 
 client.once('ready', () => {
-  console.log(`秦煥上線囉～帳號：${client.user.tag}`);
+  console.log(`🚀 秦煥上線囉～登入帳號：${client.user.tag}`);
 });
 
+// --- 最後登入 Discord ---
+client.login(process.env.DISCORD_BOT_TOKEN);
 
 // 關鍵字回應陣列
     const keywordReplies = [
@@ -760,19 +763,12 @@ const openai = require("openai"); // 或你自己定義的 openai 客戶端
 
 // --- 🔧 防呆文字清理工具 ---
 function sanitize(input) {
-  try {
-    return input
-      ?.normalize("NFKD")
-      .replace(/[\p{Emoji}\p{P}\p{S}\p{M}\p{Z}~～\u3000]/gu, "")
-      .replace(/[(（【].*?[)）】]/g, "")
-      .trim()
-      .toLowerCase();
-  } catch (err) {
-    return input
-      ?.toLowerCase()
-      ?.trim()
-      ?.replace(/[^\w一-龠]/g, "") ?? "";
-  }
+  return input
+    .normalize("NFKD")
+    .replace(/[\p{Emoji}\p{P}\p{S}\p{M}\p{Z}~～\u3000]/gu, "")
+    .replace(/[(（【].*?[)）】]/g, "")
+    .trim()
+    .toLowerCase();
 }
 
 // 🌐 Discord bot 建立
