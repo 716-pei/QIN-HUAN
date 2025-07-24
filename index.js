@@ -841,13 +841,16 @@ if (fromBot && message.author.id !== client.user.id) {
   }
 
   // --- 🗣️ 沒有叫到就不處理 ---
-  if (!mentionedMe && !raw.includes("煥煥")) return;
+ if (!mentionedMe && !raw.includes("煥煥") && !raw.includes("秦煥")) return;
 
   // --- 🧼 清除 mention 內容 ---
-  if (mentionedMe) {
-    content = raw.replace(/<@!?(\d+)>/g, "").replace("秦煥", "").trim();
-  }
-
+ if (mentionedMe) {
+  content = raw.replace(/<@!?(\d+)>/g, "").replace("秦煥", "").trim();
+  if (!content) content = "你在叫我嗎？";
+}
+  // --- 🔍 DEBUG LOG ---
+console.log("🧪 傳給 AI 的內容：", content);
+  
   // --- 更新聊天上下文 ---
   chatHistory.push({ role: "user", content });
   if (chatHistory.length > 5) chatHistory.shift();
