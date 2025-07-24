@@ -758,9 +758,6 @@ function formatReply(text) {
   return `「${text}」`;
 }
 
-const { Client, GatewayIntentBits } = require("discord.js");
-const openai = require("openai"); // 或你自己定義的 openai 客戶端
-
 // --- 🔧 防呆文字清理工具 ---
 function sanitize(input) {
   return input
