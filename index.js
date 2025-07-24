@@ -785,53 +785,53 @@ client.on("messageCreate", async (message) => {
   const raw = message.content ?? "";
   let content = raw.trim();
 
-  const isTalkingAboutMe = !mentionedMe && content.includes("秦煥");
+ const isTalkingAboutMe = !mentionedMe && (
+  content.includes("秦煥") || content.includes("@秦煥")
+);
 
 
 
-  // --- 🤖 若是 BOT 自己的訊息，檢查是否要短回應 ---
-if (fromBot && message.author.id !== client.user.id) {
-  const recentMention = passiveMentionLog.at(-1);
-  const isRecent = recentMention && now - recentMention.timestamp < BOT_REPLY_WINDOW_MS;
+ // --- 📌 若是其他 Bot 提到秦煥，也直接觸發回應 ---
+if (fromBot && isTalkingAboutMe && message.author.id !== client.user.id) {
+  content = sanitize(raw).slice(0, 100);
 
-  if (isRecent) {
-    const combined = [
-      { role: "user", content: recentMention.content },
-      { role: "assistant", content: raw }
-    ];
+  chatHistory.push({ role: "user", content });
+  if (chatHistory.length > 5) chatHistory.shift();
+  const fullContext = [...passiveMentionLog, ...chatHistory].slice(-5);
 
-      try {
-        const completion = await fetch("https://openrouter.ai/api/v1/chat/completions", {
-          method: "POST",
-          headers: {
-            "Authorization": `Bearer ${OPENAI_API_KEY}`,
-            "Content-Type": "application/json"
-          },
-          body: JSON.stringify({
-            model: "google/gemini-2.0-flash-exp:free",
-            messages: [
-              { role: "system", content: systemPrompt },
-              ...combined
-            ],
-            max_tokens: 35, // 限制短回覆
-            temperature: 0.9,
-            presence_penalty: 0.5,
-            frequency_penalty: 0.7
-          })
-        });
+  try {
+    const completion = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        "Authorization": `Bearer ${OPENAI_API_KEY}`,
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        model: "google/gemini-2.0-flash-exp:free",
+        messages: [
+          { role: "system", content: systemPrompt },
+          ...fullContext
+        ],
+        max_tokens: 120,
+        temperature: 0.9,
+        presence_penalty: 0.5,
+        frequency_penalty: 0.7
+      })
+    });
 
-        const result = await completion.json();
-        const aiResponse = result.choices?.[0]?.message?.content?.trim();
-        if (aiResponse) {
-          const reply = formatReply(aiResponse);
-          await message.channel.send(reply);
-        }
-      } catch (error) {
-        console.warn("⚠️ Gemini Flash 短回應錯誤：", error);
-      }
+    const result = await completion.json();
+    const aiResponse = result.choices?.[0]?.message?.content?.trim();
+    if (aiResponse) {
+      const reply = formatReply(aiResponse);
+      await message.channel.send(reply);
     }
-    return;
+  } catch (error) {
+    console.warn("❌ Gemini Flash 回應其他 bot 錯誤：", error);
   }
+
+  return;
+}
+
 
   // --- 🗣️ 沒有叫到就不處理 ---
  if (!mentionedMe && !raw.includes("煥煥") && !raw.includes("秦煥")) return;
