@@ -772,54 +772,66 @@ function sanitize(input) {
 const chatHistory = [];          // 真正互動（@秦煥 or 煥煥）
 const passiveMentionLog = [];   // 被提到但沒被叫到（含 timestamp）
 
+// --- 建立上下文記憶（分開記錄） ---
+const chatHistory = [];         // 主動互動歷史
+const passiveMentionLog = [];   // 被提到但未@mention 的紀錄
+
+// 設定參數
+const MAX_PASSIVE_LOG = 5;
+const BOT_REPLY_WINDOW_MS = 4000;
+
 client.on("messageCreate", async (message) => {
+  const now = Date.now();
   const fromBot = message.author.bot;
   const mentionedMe = message.mentions.has(client.user);
   const raw = message.content ?? "";
-  let content = raw.trim();
-  const now = Date.now();
+  const content = raw.trim();
 
-  // --- 💬 被說到但沒被叫出來（被八卦） ---
+  // --- 💬 被提到但沒 @（像背後說我壞話） ---
   const isTalkingAboutMe = !mentionedMe && content.includes("秦煥");
-  if (!fromBot && isTalkingAboutMe) {
-    passiveMentionLog.push({ role: "user", content: raw, timestamp: now });
-    if (passiveMentionLog.length > 5) passiveMentionLog.shift();
-    return;
-  }
 
-  // --- 🤖 若是別的 bot 回話，檢查是否是剛好接到被提到秦煥的串 ---
+if (!fromBot && isTalkingAboutMe) {
+  const cleaned = sanitizeContent(raw, 100); // 最多100字
+  passiveMentionLog.push({ role: "user", content: cleaned, timestamp: now });
+  if (passiveMentionLog.length > MAX_PASSIVE_LOG) passiveMentionLog.shift();
+  return;
+}
+
+  // --- 🤖 如果是其他 bot 的訊息，並且緊接著有人提到「秦煥」 ---
   if (fromBot) {
     const recentMention = passiveMentionLog.at(-1);
-    if (recentMention && now - recentMention.timestamp < 4000) {
+    const isRecent = recentMention && now - recentMention.timestamp < BOT_REPLY_WINDOW_MS;
+
+    if (isRecent) {
       const combined = [
         { role: "user", content: recentMention.content },
         { role: "assistant", content: raw },
       ];
 
       try {
-        const completion = await openai.chat.completions.create({
-          model: "google/gemini-2.0-flash-exp:free",
-          messages: [
-            { role: "system", content: systemPrompt },
-            ...combined,
-          ],
-          max_tokens: 120,
-          temperature: 0.9,
-          presence_penalty: 0.5,
-          frequency_penalty: 0.7,
-        });
+       const completion = await openai.chat.completions.create({
+  model: "google/gemini-2.0-flash-exp:free",
+  messages: [
+    { role: "system", content: systemPrompt },
+    ...combined,
+  ],
+  max_tokens: 35, // 🔸控制大約20字內
+  temperature: 0.9,
+  presence_penalty: 0.5,
+  frequency_penalty: 0.7,
+});
 
         const aiResponse = completion.choices[0].message.content.trim();
         const reply = formatReply(aiResponse);
-        message.channel.send(reply);
+        await message.channel.send(reply);
       } catch (error) {
-        console.warn("⚠️ bot回應串錯誤：", error?.response?.data || error);
+        console.warn("⚠️ bot 回應錯誤：", error?.response?.data || error);
       }
-
-      return;
     }
-    return;
+
+    return; // 無論有沒有接續，都不要再處理
   }
+});
 
   // --- 🗣️ 若沒叫到（@ 或煥煥）就不理會 ---
   if (!mentionedMe && !raw.includes("煥煥")) return;
@@ -834,18 +846,17 @@ client.on("messageCreate", async (message) => {
 
   // --- 🤖 正式回覆區 ---
   try {
-    const completion = await openai.chat.completions.create({
-      model: "google/gemini-2.0-flash-exp:free",
-      messages: [
-        { role: "system", content: systemPrompt },
-        ...fullContext,
-      ],
-      max_tokens: 120,
-      temperature: 0.9,
-      presence_penalty: 0.5,
-      frequency_penalty: 0.7,
-    });
-
+   const completion = await openai.chat.completions.create({
+  model: "google/gemini-2.0-flash-exp:free",
+  messages: [
+    { role: "system", content: systemPrompt },
+    ...fullContext,
+  ],
+  max_tokens: 35, // 🩸控制 AI 回覆字數，大約 20 中文字以內
+  temperature: 0.9,
+  presence_penalty: 0.5,
+  frequency_penalty: 0.7,
+});
     const aiResponse = completion.choices[0].message.content.trim();
     const reply = formatReply(aiResponse);
     chatHistory.push({ role: "assistant", content: reply });
