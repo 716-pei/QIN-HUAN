@@ -790,34 +790,28 @@ client.on("messageCreate", async (message) => {
   const fromBot = message.author.bot;
   const fromSelf = message.author.id === client.user.id;
   const mentionRegex = /秦煥/;
-const mentionedMe = message.mentions.has(client.user) || message.content.includes("@秦煥#1066");
-
+  const mentionedMe = message.mentions.has(client.user) || message.content.includes("@秦煥#1066");
 
   // ✅ 檢查：其他 Bot + 非自己 + 有提到秦煥 + 引用了某訊息
   if (fromBot && !fromSelf && mentionRegex.test(raw) && message.reference?.messageId) {
     try {
-      // 抓被引用的訊息
       const quotedMessage = await message.channel.messages.fetch(message.reference.messageId);
       if (!quotedMessage) return;
 
-      // ✅ 檢查：被引用的是人類用戶、內容含「秦煥」
       const quotedRaw = quotedMessage.content ?? "";
       const isFromUser = !quotedMessage.author.bot;
       const quotedMentionedQinhuan = mentionRegex.test(quotedRaw);
       if (!isFromUser || !quotedMentionedQinhuan) return;
 
-      // ✅ 檢查是否已回應過，避免 spam
       if (recentlyResponded.has(message.id)) return;
       recentlyResponded.add(message.id);
-      setTimeout(() => recentlyResponded.delete(message.id), 3000); // 3 秒內不重複回應
+      setTimeout(() => recentlyResponded.delete(message.id), 3000);
 
-      // ✅ 清理內容給 AI 用
       const content = sanitize(raw).slice(0, 100);
       chatHistory.push({ role: "user", content });
       if (chatHistory.length > 5) chatHistory.shift();
       const fullContext = [...passiveMentionLog, ...chatHistory].slice(-5);
 
-      // ✅ 呼叫 OpenRouter Gemini API
       const completion = await fetch("https://openrouter.ai/api/v1/chat/completions", {
         method: "POST",
         headers: {
@@ -840,39 +834,35 @@ const mentionedMe = message.mentions.has(client.user) || message.content.include
       const result = await completion.json();
       console.log("🧪 AI 回傳原始結果：", JSON.stringify(result, null, 2));
       const aiResponse = result.choices?.[0]?.message?.content?.trim();
-
       if (aiResponse) {
         const reply = formatReply(aiResponse);
-        await message.reply(reply); // ✅ 只回覆這個 bot 的訊息
+        await message.reply(reply);
       }
 
-      return; // ✅ 結束，避免掉到下面 @mention 主動區塊
+      return;
     } catch (err) {
       console.warn("⚠️ 無法處理引用訊息：", err);
+      return;
     }
   }
 
-
-  // ✅ 如果沒有顯式 @秦煥 或 @秦煥#1066，就不主動回覆
+  // ✅ 沒有提及就跳過
   if (!mentionedMe) return;
 
-  // ✅ 處理 @mention 清除 & fallback 空訊息
-  if (mentionedMe) {
-    content = raw
-      .replace(/<@!?(\d+)>/g, "")       // 清除使用者 mention
-      .replace(/<@&(\d+)>/g, "")        // 清除身分組 mention
-      .replace(/秦煥/g, "")            // 清除純文字秦煥
-      .trim();
+  // ✅ 清除提及與 fallback
+  let content = raw
+    .replace(/<@!?(\d+)>/g, "")
+    .replace(/<@&(\d+)>/g, "")
+    .replace(/秦煥/g, "")
+    .trim();
 
-    if (!content) content = "你在叫我嗎？";
-  }
+  if (!content) content = "你在叫我嗎？";
 
-  // ✅ 主動回應 @秦煥 的訊息
   chatHistory.push({ role: "user", content });
   if (chatHistory.length > 5) chatHistory.shift();
   const fullContext = [...passiveMentionLog, ...chatHistory].slice(-5);
 
-    try {
+  try {
     const completion = await fetch("https://openrouter.ai/api/v1/chat/completions", {
       method: "POST",
       headers: {
@@ -892,28 +882,17 @@ const mentionedMe = message.mentions.has(client.user) || message.content.include
       })
     });
 
-    let aiResponded = false;
-
-    try {
-      const result = await completion.json();
-      console.log("🧪 AI 回傳原始結果：", JSON.stringify(result, null, 2));
-
-      const aiResponse = result.choices?.[0]?.message?.content?.trim();
-      if (aiResponse) {
-        aiResponded = true;
-        const reply = formatReply(aiResponse);
-        await message.channel.send(reply);
-      }
-    } 
-    catch (error) {
-      aiResponded = false;
-      console.warn("❌ Gemini Flash 正式回覆錯誤：", error);
-      const fallback = keywordFallbackReply(content, mentionedMe ?? false);
-      if (fallback) {
-        await message.reply(`「${fallback}」`);
-      }
+    const result = await completion.json();
+    console.log("✨ 主動 AI 回傳：", JSON.stringify(result, null, 2));
+    const aiResponse = result.choices?.[0]?.message?.content?.trim();
+    if (aiResponse) {
+      const reply = formatReply(aiResponse);
+      await message.reply(reply);
     }
+  } catch (err) {
+    console.error("❌ 無法主動回覆：", err);
   }
+}); // 👈 這一行是你的 `client.on(...)` 大括號結尾
 
 // --- 精準關鍵字 ---
 if (!aiResponded) {
@@ -942,7 +921,6 @@ if (!aiResponded) {
     }
   }
 }
-});
  
 // 訊息刪除
 client.on("messageDelete", (msg) => {
