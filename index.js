@@ -780,24 +780,29 @@ client.on("messageCreate", async (message) => {
     content = content.replace(/<@!?(\d+)>/g, "秦煥");
   }
 
-  // --- 更新對話記憶 ---
+// --- 更新對話記憶 ---
+if (content.length > 0) {
   chatHistory.push({ role: "user", content });
-  if (chatHistory.length > 5) chatHistory.shift(); // 只保留最近 5 條
+  if (chatHistory.length > 5) chatHistory.shift();
+}
 
-  // --- Step 0：AI 回覆（Gemini 2.0 Flash） ---
-  try {
-    const completion = await openai.chat.completions.create({
-      model: "google/gemini-2.0-flash-exp:free",
-      messages: [
-        { role: "system", content: systemPrompt },
-        ...chatHistory
-      ],
-      max_tokens: 120,
-      temperature: 0.9,
-      presence_penalty: 0.5,
-      frequency_penalty: 0.7,
-      n: 1, // 生成 3 個備選回覆
-    });
+// --- 呼叫 Gemini Flash ---
+const completion = await openai.chat.completions.create({
+  model: "google/gemini-2.0-flash-exp:free",
+  messages: [
+    { role: "system", content: systemPrompt },
+    ...chatHistory,
+  ],
+  max_tokens: 120,
+  temperature: 0.9,
+  presence_penalty: 0.5,
+  frequency_penalty: 0.7,
+});
+
+// --- 包上「」回傳 ---
+const aiResponse = completion.choices[0].message.content.trim();
+const reply = formatReply(aiResponse);
+message.reply(reply);
 
     const choices = completion.choices.map(c => c.message.content.trim());
     const reply = choices[Math.floor(Math.random() * choices.length)];
