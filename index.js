@@ -912,6 +912,7 @@ try {
     await message.reply(`「${fallback}」`);
   }
 }
+});
 
 // --- 精準關鍵字 ---
 if (!aiResponded) {
