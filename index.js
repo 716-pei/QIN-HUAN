@@ -772,10 +772,6 @@ function sanitize(input) {
 const chatHistory = [];          // 真正互動（@秦煥 or 煥煥）
 const passiveMentionLog = [];   // 被提到但沒被叫到（含 timestamp）
 
-// --- 建立上下文記憶（分開記錄） ---
-const chatHistory = [];         // 主動互動歷史
-const passiveMentionLog = [];   // 被提到但未@mention 的紀錄
-
 // 設定參數
 const MAX_PASSIVE_LOG = 5;
 const BOT_REPLY_WINDOW_MS = 4000;
@@ -791,7 +787,7 @@ client.on("messageCreate", async (message) => {
   const isTalkingAboutMe = !mentionedMe && content.includes("秦煥");
 
 if (!fromBot && isTalkingAboutMe) {
-  const cleaned = sanitizeContent(raw, 100); // 最多100字
+  const cleaned = sanitize(raw, 100); // 最多100字
   passiveMentionLog.push({ role: "user", content: cleaned, timestamp: now });
   if (passiveMentionLog.length > MAX_PASSIVE_LOG) passiveMentionLog.shift();
   return;
@@ -837,7 +833,7 @@ if (!fromBot && isTalkingAboutMe) {
   if (!mentionedMe && !raw.includes("煥煥")) return;
 
   if (mentionedMe) {
-    content = content.replace(/<@!?(\d+)>/g, "秦煥");
+   let content = raw.trim(/<@!?(\d+)>/g, "秦煥");
   }
 
   chatHistory.push({ role: "user", content });
