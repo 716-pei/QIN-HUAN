@@ -52,6 +52,11 @@ async function fetchGeminiReply(promptText) {
 }
 
 
+// ✅ 格式化函數（維持不變）
+function formatReply(text) {
+  return `「${text}」`;
+}
+
 // 🧠 人設（System Prompt）
 const systemPrompt = `
 你是秦煥，NOIR會所合夥人，一個讓人上癮的操控者。
@@ -82,12 +87,7 @@ const systemPrompt = `
 `.trim();
 
 
-// ✅ 格式化函數（維持不變）
-function formatReply(text) {
-  return `「${text}」`;
-}
-
-// 🧼 可選：避免過度清除表情的版本
+// 🧼 表情保留型清洗器
 function sanitize(input) {
   return input
     .normalize("NFKD")
@@ -97,8 +97,6 @@ function sanitize(input) {
 }
 
 const chatHistory = [];
-const passiveMentionLog = [];
-const MAX_PASSIVE_LOG = 3;
 const recentlyResponded = new Set();
 const mentionRegex = /秦煥/;
 
@@ -108,7 +106,7 @@ client.on("messageCreate", async (message) => {
   const fromSelf = message.author.id === client.user.id;
   const mentionedMe = message.mentions.has(client.user) || raw.includes("@秦煥#1066");
 
-  // ✅ 處理引用回覆
+  // ✅ 處理引用訊息
   if (fromBot && !fromSelf && mentionRegex.test(raw) && message.reference?.messageId) {
     try {
       const quotedMessage = await message.channel.messages.fetch(message.reference.messageId);
@@ -122,29 +120,35 @@ client.on("messageCreate", async (message) => {
       chatHistory.push({ role: "user", content });
       if (chatHistory.length > 5) chatHistory.shift();
 
-      const fullPrompt = [...chatHistory].map((m) => m.content).join("\n");
+      const fullPrompt = `${systemPrompt}\n\n${chatHistory.map(m => m.content).join("\n")}`;
 
       const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${process.env.GEMINI_API_KEY}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           contents: [
-            { role: "system", parts: [{ text: systemPrompt }] }, // ✅ 人設注入
-            { role: "user", parts: [{ text: fullPrompt }] }
+            {
+              role: "user",
+              parts: [{ text: fullPrompt }]
+            }
           ]
         })
       });
 
       const result = await response.json();
-        console.log("🧠 Gemini 回傳結果：", JSON.stringify(result, null, 2));
+      console.log("🧠 Gemini 回傳結果（引用）：", JSON.stringify(result, null, 2));
       const aiReply = result.candidates?.[0]?.content?.parts?.[0]?.text?.trim();
-      if (aiReply) message.reply(formatReply(aiReply));
+      if (aiReply) {
+        message.reply(formatReply(aiReply));
+      } else {
+        message.reply("「妳講得不夠誠懇。」");
+      }
     } catch (err) {
       console.warn("⚠️ 引用處理錯誤：", err);
     }
   }
 
-  // ✅ 提及處理（主回覆區）
+  // ✅ 提及處理（主邏輯）
   if (!mentionedMe) return;
 
   let content = raw
@@ -158,7 +162,7 @@ client.on("messageCreate", async (message) => {
   chatHistory.push({ role: "user", content });
   if (chatHistory.length > 5) chatHistory.shift();
 
-  const fullPrompt = [...chatHistory].map((m) => m.content).join("\n");
+  const fullPrompt = `${systemPrompt}\n\n${chatHistory.map(m => m.content).join("\n")}`;
 
   try {
     const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${process.env.GEMINI_API_KEY}`, {
@@ -166,16 +170,22 @@ client.on("messageCreate", async (message) => {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         contents: [
-          { role: "system", parts: [{ text: systemPrompt }] }, // ✅ 人設注入
-          { role: "user", parts: [{ text: fullPrompt }] }
+          {
+            role: "user",
+            parts: [{ text: fullPrompt }]
+          }
         ]
       })
     });
 
     const result = await response.json();
-      console.log("🧠 Gemini 回傳結果：", JSON.stringify(result, null, 2));
+    console.log("🧠 Gemini 回傳結果（提及）：", JSON.stringify(result, null, 2));
     const aiReply = result.candidates?.[0]?.content?.parts?.[0]?.text?.trim();
-    if (aiReply) message.reply(formatReply(aiReply));
+    if (aiReply) {
+      message.reply(formatReply(aiReply));
+    } else {
+      message.reply("「妳講得不夠誠懇。」");
+    }
   } catch (err) {
     console.error("❌ Gemini 回覆錯誤：", err);
   }
