@@ -196,8 +196,6 @@ client.on("messageCreate", async (message) => {
         frequency_penalty: 0.7,
       }),
     });
-
-try {
   const result = await completion.json();
   console.log("🔧 OpenRouter 回傳結果（提及）：", result);
   const aiResponse = result.choices?.[0]?.message?.content?.trim();
@@ -205,9 +203,6 @@ try {
   console.error("❌ 無法處理回應：", err);
 }
 }
-});
-
-
 
 // ✅ 補充：訊息刪除
 client.on("messageDelete", (msg) => {
