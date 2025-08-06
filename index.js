@@ -114,9 +114,8 @@ const passiveMentionLog = [];
 const MAX_PASSIVE_LOG = 5;
 const BOT_REPLY_WINDOW_MS = 4000;
 
-const fetch = require("node-fetch");
-const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
-
+const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
+const fetch = require('node-fetch'); // ❌ 拔掉這行！
 const recentlyResponded = new Set(); // 防止重複回應
 
 // ✅ 判斷是否為「@秦煥」或「@秦煥#1066」提及
