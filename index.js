@@ -197,12 +197,11 @@ client.on("messageCreate", async (message) => {
       }),
     });
 
-    const result = await completion.json();
-      console.log("🔧 OpenRouter 回傳結果（提及）：", result);
-    const aiResponse = result.choices?.[0]?.message?.content?.trim();
-
-   
-  }catch (err) {
+try {
+  const result = await completion.json();
+  console.log("🔧 OpenRouter 回傳結果（提及）：", result);
+  const aiResponse = result.choices?.[0]?.message?.content?.trim();
+} catch (err) {
   console.error("❌ 無法處理回應：", err);
 }
 }
