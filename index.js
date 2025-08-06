@@ -202,7 +202,7 @@ client.on("messageCreate", async (message) => {
     const aiResponse = result.choices?.[0]?.message?.content?.trim();
 
    
-  catch (err) {
+  }catch (err) {
   console.error("❌ 無法處理回應：", err);
 }
 
