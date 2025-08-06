@@ -205,7 +205,7 @@ client.on("messageCreate", async (message) => {
   }catch (err) {
   console.error("❌ 無法處理回應：", err);
 }
-
+}
 });
 
 
