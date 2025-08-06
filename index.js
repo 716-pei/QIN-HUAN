@@ -129,7 +129,8 @@ client.on("messageCreate", async (message) => {
       chatHistory.push({ role: "user", content });
       if (chatHistory.length > 5) chatHistory.shift();
 
-      const fullPrompt = `${systemPrompt}\n\n${chatHistory.map(m => m.content).join("\n")}`;
+    const fullPrompt = `${systemPrompt}\n\n【對話紀錄】\n${chatHistory.map((m) => `【她】：${m.content}`).join("\n")}\n\n【秦煥】：`;
+
 
       const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${process.env.GEMINI_API_KEY}`, {
         method: "POST",
