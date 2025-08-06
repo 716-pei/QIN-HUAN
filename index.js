@@ -158,9 +158,10 @@ client.on("messageCreate", async (message) => {
       console.log("🔧 OpenRouter 回傳結果（引用）：", result);
       const aiResponse = result.choices?.[0]?.message?.content?.trim();
 
-      if (aiResponse) {
-        message.reply(aiResponse);
-      }
+     if (aiResponse) {
+  message.reply(formatReply(aiResponse)); // ✅ 加上格式化
+}
+
     } catch (err) {
       console.warn("⚠️ 無法處理引用訊息：", err);
       return;
@@ -203,9 +204,10 @@ client.on("messageCreate", async (message) => {
     console.log("🔧 OpenRouter 回傳結果（提及）：", result);
     const aiResponse = result.choices?.[0]?.message?.content?.trim();
 
-    if (aiResponse) {
-      message.reply(aiResponse);
-    }
+  if (aiResponse) {
+  message.reply(formatReply(aiResponse)); // ✅ 加上格式化
+}
+
   } catch (err) {
     console.error("❌ 無法處理回應：", err);
   }
