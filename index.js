@@ -202,7 +202,7 @@ client.on("messageCreate", async (message) => {
 } catch (err) {
   console.error("❌ 無法處理回應：", err);
 }
-}
+
 
 // ✅ 補充：訊息刪除
 client.on("messageDelete", (msg) => {
