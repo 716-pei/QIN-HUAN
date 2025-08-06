@@ -136,6 +136,7 @@ client.on("messageCreate", async (message) => {
       });
 
       const result = await response.json();
+        console.log("🧠 Gemini 回傳結果：", JSON.stringify(result, null, 2));
       const aiReply = result.candidates?.[0]?.content?.parts?.[0]?.text?.trim();
       if (aiReply) message.reply(formatReply(aiReply));
     } catch (err) {
@@ -172,6 +173,7 @@ client.on("messageCreate", async (message) => {
     });
 
     const result = await response.json();
+      console.log("🧠 Gemini 回傳結果：", JSON.stringify(result, null, 2));
     const aiReply = result.candidates?.[0]?.content?.parts?.[0]?.text?.trim();
     if (aiReply) message.reply(formatReply(aiReply));
   } catch (err) {
