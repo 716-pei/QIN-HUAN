@@ -241,4 +241,3 @@ client.on("messageUpdate", (oldMsg, newMsg) => {
     newMsg.channel.send(reply);
   }
 });
-console.log("✅ 程式碼結束");
