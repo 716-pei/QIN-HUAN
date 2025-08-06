@@ -1,13 +1,8 @@
 // --- 環境變數與套件 ---
 require('dotenv').config();
 const express = require('express');
-const {
-    Client,
-    GatewayIntentBits
-} = require('discord.js');
-const {
-    OpenAI
-} = require('openai');
+const fetch = require('node-fetch'); // ✅ 改用 fetch 直接請求 Gemini API
+const { Client, GatewayIntentBits } = require('discord.js');
 
 // --- 啟動 Express (存活檢測用) ---
 const app = express();
@@ -17,11 +12,9 @@ app.listen(PORT, '0.0.0.0', () => {
     console.log(`✅ 伺服器在 ${PORT} 埠口啟動成功`);
 });
 
-// --- 使用 OpenRouter API ---
-const openai = new OpenAI({
-    apiKey: process.env.OPENAI_API_KEY, // .env 中必須設定 OPENAI_API_KEY
-    baseURL: 'https://openrouter.ai/api/v1',
-});
+// ❌ 拿掉 OpenAI 套件（因為我們改用 Google Gemini 的原生 REST API）
+// const { OpenAI } = require('openai');
+// const openai = new OpenAI({ ... })
 
 // --- 建立 Discord Client ---
 const client = new Client({
@@ -38,6 +31,25 @@ client.once('ready', () => {
 
 // --- 最後登入 Discord ---
 client.login(process.env.DISCORD_BOT_TOKEN);
+async function fetchGeminiReply(promptText) {
+  const apiKey = process.env.GEMINI_API_KEY; // ✅ 確保你有在 .env 裡加這個
+  const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent?key=${apiKey}`;
+
+  const response = await fetch(endpoint, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      contents: [
+        { role: "user", parts: [{ text: promptText }] }
+      ]
+    }),
+  });
+
+  const result = await response.json();
+  return result.candidates?.[0]?.content?.parts?.[0]?.text?.trim() || "（沒有生成內容喔）";
+}
 
 
 // 人設（System Prompt）
@@ -118,7 +130,7 @@ client.on("messageCreate", async (message) => {
   const mentionRegex = /秦煥/;
   const mentionedMe = message.mentions.has(client.user) || message.content.includes("@秦煥#1066");
 
-  // ✅ 處理：Bot 引用使用者提到秦煥的訊息
+  // --- 引用訊息處理（使用 Gemini 2.0 Flash） ---
   if (fromBot && !fromSelf && mentionRegex.test(raw) && message.reference?.messageId) {
     try {
       const quotedMessage = await message.channel.messages.fetch(message.reference.messageId);
@@ -136,39 +148,34 @@ client.on("messageCreate", async (message) => {
       const content = sanitize(raw).slice(0, 100);
       chatHistory.push({ role: "user", content });
       if (chatHistory.length > 5) chatHistory.shift();
-      const fullContext = [...passiveMentionLog, ...chatHistory].slice(-5);
 
-      const completion = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+      const fullPrompt = [...passiveMentionLog, ...chatHistory].map((m) => m.content).join("\n");
+
+      const apiKey = process.env.GEMINI_API_KEY;
+      const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`;
+      const geminiRes = await fetch(endpoint, {
         method: "POST",
-        headers: {
-          Authorization: `Bearer ${OPENAI_API_KEY}`,
-          "Content-Type": "application/json",
-        },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          model: "google/gemini-2.0-flash-exp:free",
-          messages: [{ role: "system", content: systemPrompt }, ...fullContext],
-          max_tokens: 120,
-          temperature: 0.9,
-          presence_penalty: 0.5,
-          frequency_penalty: 0.7,
+          contents: [
+            { role: "user", parts: [{ text: fullPrompt }] }
+          ]
         }),
       });
 
-      const result = await completion.json();
-      console.log("🔧 OpenRouter 回傳結果（引用）：", result);
-      const aiResponse = result.choices?.[0]?.message?.content?.trim();
+      const result = await geminiRes.json();
+      console.log("🔧 Gemini 回傳結果（引用）：", result);
+      const aiReply = result.candidates?.[0]?.content?.parts?.[0]?.text?.trim();
 
-     if (aiResponse) {
-  message.reply(formatReply(aiResponse)); // ✅ 加上格式化
-}
-
+      if (aiReply) {
+        message.reply(formatReply(aiReply)); // ✅ 包上「」的格式函數
+      }
     } catch (err) {
-      console.warn("⚠️ 無法處理引用訊息：", err);
-      return;
+      console.warn("⚠️ 引用訊息處理錯誤：", err);
     }
   }
 
-  // ✅ 提及秦煥才回應
+  // --- 提及處理（使用 Gemini 2.0 Flash） ---
   if (!mentionedMe) return;
 
   let content = raw
@@ -181,35 +188,31 @@ client.on("messageCreate", async (message) => {
 
   chatHistory.push({ role: "user", content });
   if (chatHistory.length > 5) chatHistory.shift();
-  const fullContext = [...passiveMentionLog, ...chatHistory].slice(-5);
+
+  const fullPrompt = [...passiveMentionLog, ...chatHistory].map((m) => m.content).join("\n");
 
   try {
-    const completion = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+    const apiKey = process.env.GEMINI_API_KEY;
+    const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`;
+    const geminiRes = await fetch(endpoint, {
       method: "POST",
-      headers: {
-        Authorization: `Bearer ${OPENAI_API_KEY}`,
-        "Content-Type": "application/json",
-      },
+      headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        model: "google/gemini-2.0-flash-exp:free",
-        messages: [{ role: "system", content: systemPrompt }, ...fullContext],
-        max_tokens: 120,
-        temperature: 0.9,
-        presence_penalty: 0.5,
-        frequency_penalty: 0.7,
+        contents: [
+          { role: "user", parts: [{ text: fullPrompt }] }
+        ]
       }),
     });
 
-    const result = await completion.json();
-    console.log("🔧 OpenRouter 回傳結果（提及）：", result);
-    const aiResponse = result.choices?.[0]?.message?.content?.trim();
+    const result = await geminiRes.json();
+    console.log("🔧 Gemini 回傳結果（提及）：", result);
+    const aiReply = result.candidates?.[0]?.content?.parts?.[0]?.text?.trim();
 
-  if (aiResponse) {
-  message.reply(formatReply(aiResponse)); // ✅ 加上格式化
-}
-
+    if (aiReply) {
+      message.reply(formatReply(aiReply)); // ✅ 包上「」的格式函數
+    }
   } catch (err) {
-    console.error("❌ 無法處理回應：", err);
+    console.error("❌ Gemini 回覆錯誤：", err);
   }
 });
 
