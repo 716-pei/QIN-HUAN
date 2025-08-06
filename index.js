@@ -129,7 +129,8 @@ client.on("messageCreate", async (message) => {
       chatHistory.push({ role: "user", content });
       if (chatHistory.length > 5) chatHistory.shift();
 
-    const fullPrompt = `${systemPrompt}\n\n【對話紀錄】\n${chatHistory.map((m) => `【她】：${m.content}`).join("\n")}\n\n【秦煥】：`;
+    const latestMessage = chatHistory[chatHistory.length - 1]?.content ?? "";
+const fullPrompt = `${systemPrompt}\n\n她說：「${latestMessage}」\n\n你會怎麼回？`;
 
 
       const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${process.env.GEMINI_API_KEY}`, {
