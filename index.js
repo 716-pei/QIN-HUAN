@@ -52,7 +52,7 @@ async function fetchGeminiReply(promptText) {
 }
 
 
-// 人設（System Prompt）
+// 🧠 人設（System Prompt）
 const systemPrompt = `
 你是秦煥，NOIR會所合夥人，一個讓人上癮的操控者。
 
@@ -89,55 +89,37 @@ const systemPrompt = `
 - 妳越沉淪，他越冷狠；妳不動心，他連看都不看。
 `.trim();
 
-
-
-
-// --- 格式化回覆，包上「」 ---
+// ✅ 格式化函數（維持不變）
 function formatReply(text) {
-    return `「${text}」`;
+  return `「${text}」`;
 }
 
-// --- 🔧 防呆文字清理工具 ---
+// 🧼 可選：避免過度清除表情的版本
 function sanitize(input) {
-    return input
-        .normalize("NFKD")
-        .replace(/[\p{Emoji}\p{P}\p{S}\p{M}\p{Z}~～\u3000]/gu, "")
-        .replace(/[(（【].*?[)）】]/g, "")
-        .trim()
-        .toLowerCase();
+  return input
+    .normalize("NFKD")
+    .replace(/[^\p{L}\p{N}\p{Zs}。！？]/gu, "")
+    .trim()
+    .toLowerCase();
 }
 
-// --- 建立上下文記憶（分開記錄） ---
 const chatHistory = [];
 const passiveMentionLog = [];
+const MAX_PASSIVE_LOG = 3;
+const recentlyResponded = new Set();
+const mentionRegex = /秦煥/;
 
-const MAX_PASSIVE_LOG = 5;
-const BOT_REPLY_WINDOW_MS = 4000;
-
-const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
-const recentlyResponded = new Set(); // 防止重複回應
-
-// ✅ 判斷是否為「@秦煥」或「@秦煥#1066」提及
-function isExplicitMention(message) {
-    return message.mentions.has(client.user) || message.content.includes("@秦煥#1066");
-}
 client.on("messageCreate", async (message) => {
   const raw = message.content ?? "";
   const fromBot = message.author.bot;
   const fromSelf = message.author.id === client.user.id;
-  const mentionRegex = /秦煥/;
-  const mentionedMe = message.mentions.has(client.user) || message.content.includes("@秦煥#1066");
+  const mentionedMe = message.mentions.has(client.user) || raw.includes("@秦煥#1066");
 
-  // --- 引用訊息處理（使用 Gemini 2.0 Flash） ---
+  // ✅ 處理引用回覆
   if (fromBot && !fromSelf && mentionRegex.test(raw) && message.reference?.messageId) {
     try {
       const quotedMessage = await message.channel.messages.fetch(message.reference.messageId);
-      if (!quotedMessage) return;
-
-      const quotedRaw = quotedMessage.content ?? "";
-      const isFromUser = !quotedMessage.author.bot;
-      const quotedMentionedQinhuan = mentionRegex.test(quotedRaw);
-      if (!isFromUser || !quotedMentionedQinhuan) return;
+      if (!quotedMessage || quotedMessage.author.bot) return;
 
       if (recentlyResponded.has(message.id)) return;
       recentlyResponded.add(message.id);
@@ -147,33 +129,28 @@ client.on("messageCreate", async (message) => {
       chatHistory.push({ role: "user", content });
       if (chatHistory.length > 5) chatHistory.shift();
 
-      const fullPrompt = [...passiveMentionLog, ...chatHistory].map((m) => m.content).join("\n");
+      const fullPrompt = [...chatHistory].map((m) => m.content).join("\n");
 
-      const apiKey = process.env.GEMINI_API_KEY;
-      const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`;
-      const geminiRes = await fetch(endpoint, {
+      const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${process.env.GEMINI_API_KEY}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           contents: [
+            { role: "system", parts: [{ text: systemPrompt }] }, // ✅ 人設注入
             { role: "user", parts: [{ text: fullPrompt }] }
           ]
-        }),
+        })
       });
 
-      const result = await geminiRes.json();
-      console.log("🔧 Gemini 回傳結果（引用）：", result);
+      const result = await response.json();
       const aiReply = result.candidates?.[0]?.content?.parts?.[0]?.text?.trim();
-
-      if (aiReply) {
-        message.reply(formatReply(aiReply)); // ✅ 包上「」的格式函數
-      }
+      if (aiReply) message.reply(formatReply(aiReply));
     } catch (err) {
-      console.warn("⚠️ 引用訊息處理錯誤：", err);
+      console.warn("⚠️ 引用處理錯誤：", err);
     }
   }
 
-  // --- 提及處理（使用 Gemini 2.0 Flash） ---
+  // ✅ 提及處理（主回覆區）
   if (!mentionedMe) return;
 
   let content = raw
@@ -187,32 +164,28 @@ client.on("messageCreate", async (message) => {
   chatHistory.push({ role: "user", content });
   if (chatHistory.length > 5) chatHistory.shift();
 
-  const fullPrompt = [...passiveMentionLog, ...chatHistory].map((m) => m.content).join("\n");
+  const fullPrompt = [...chatHistory].map((m) => m.content).join("\n");
 
   try {
-    const apiKey = process.env.GEMINI_API_KEY;
-    const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`;
-    const geminiRes = await fetch(endpoint, {
+    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${process.env.GEMINI_API_KEY}`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         contents: [
+          { role: "system", parts: [{ text: systemPrompt }] }, // ✅ 人設注入
           { role: "user", parts: [{ text: fullPrompt }] }
         ]
-      }),
+      })
     });
 
-    const result = await geminiRes.json();
-    console.log("🔧 Gemini 回傳結果（提及）：", result);
+    const result = await response.json();
     const aiReply = result.candidates?.[0]?.content?.parts?.[0]?.text?.trim();
-
-    if (aiReply) {
-      message.reply(formatReply(aiReply)); // ✅ 包上「」的格式函數
-    }
+    if (aiReply) message.reply(formatReply(aiReply));
   } catch (err) {
     console.error("❌ Gemini 回覆錯誤：", err);
   }
 });
+
 
 // ✅ 補充：訊息刪除
 client.on("messageDelete", (msg) => {
