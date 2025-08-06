@@ -155,10 +155,12 @@ client.on("messageCreate", async (message) => {
       });
 
       const result = await completion.json();
-        console.log("🔧 OpenRouter 回傳結果（引用）：", result);
+      console.log("🔧 OpenRouter 回傳結果（引用）：", result);
       const aiResponse = result.choices?.[0]?.message?.content?.trim();
 
-      return;
+      if (aiResponse) {
+        message.reply(aiResponse);
+      }
     } catch (err) {
       console.warn("⚠️ 無法處理引用訊息：", err);
       return;
@@ -196,13 +198,18 @@ client.on("messageCreate", async (message) => {
         frequency_penalty: 0.7,
       }),
     });
-  const result = await completion.json();
-  console.log("🔧 OpenRouter 回傳結果（提及）：", result);
-  const aiResponse = result.choices?.[0]?.message?.content?.trim();
-} catch (err) {
-  console.error("❌ 無法處理回應：", err);
-}
 
+    const result = await completion.json();
+    console.log("🔧 OpenRouter 回傳結果（提及）：", result);
+    const aiResponse = result.choices?.[0]?.message?.content?.trim();
+
+    if (aiResponse) {
+      message.reply(aiResponse);
+    }
+  } catch (err) {
+    console.error("❌ 無法處理回應：", err);
+  }
+});
 
 // ✅ 補充：訊息刪除
 client.on("messageDelete", (msg) => {
