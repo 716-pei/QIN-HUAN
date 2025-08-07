@@ -116,22 +116,13 @@ client.on("messageCreate", async (message) => {
   const mentionedMe = message.mentions.has(client.user) || raw.includes("@秦煥#1066");
 
   // ✅ 處理引用訊息
-  if (fromBot && !fromSelf && mentionRegex.test(raw) && message.reference?.messageId) {
+  if (fromBot && !fromSelf && /秦煥/.test(raw) && message.reference?.messageId) {
     try {
       const quotedMessage = await message.channel.messages.fetch(message.reference.messageId);
       if (!quotedMessage || quotedMessage.author.bot) return;
 
-      if (recentlyResponded.has(message.id)) return;
-      recentlyResponded.add(message.id);
-      setTimeout(() => recentlyResponded.delete(message.id), 3000);
-
-      const content = sanitize(raw).slice(0, 100);
-      chatHistory.push({ role: "user", content });
-      if (chatHistory.length > 5) chatHistory.shift();
-
-    const latestMessage = chatHistory[chatHistory.length - 1]?.content ?? "";
-const fullPrompt = `${systemPrompt}\n\n她說：「${latestMessage}」\n\n你會怎麼回？`;
-
+      const latestMessage = sanitize(raw).slice(0, 100);
+      const fullPrompt = `${systemPrompt}\n\n她說：「${latestMessage}」\n\n你會怎麼回？`;
 
       const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${process.env.GEMINI_API_KEY}`, {
         method: "POST",
@@ -159,7 +150,7 @@ const fullPrompt = `${systemPrompt}\n\n她說：「${latestMessage}」\n\n你會
     }
   }
 
-  // ✅ 提及處理（主邏輯）
+  // ✅ 主邏輯：有人提及我，就回最新一句
   if (!mentionedMe) return;
 
   let content = raw
@@ -170,10 +161,8 @@ const fullPrompt = `${systemPrompt}\n\n她說：「${latestMessage}」\n\n你會
 
   if (!content) content = "你在叫我嗎？";
 
-  chatHistory.push({ role: "user", content });
-  if (chatHistory.length > 5) chatHistory.shift();
-
-  const fullPrompt = `${systemPrompt}\n\n${chatHistory.map(m => m.content).join("\n")}`;
+  const latestMessage = sanitize(content).slice(0, 100);
+  const fullPrompt = `${systemPrompt}\n\n她說：「${latestMessage}」\n\n你會怎麼回？`;
 
   try {
     const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${process.env.GEMINI_API_KEY}`, {
