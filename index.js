@@ -1,7 +1,7 @@
 // --- 環境變數與套件 ---
 require('dotenv').config();
 const express = require('express');
-const fetch = require('node-fetch'); // ✅ 改用 fetch 直接請求 Gemini API
+const fetch = require('node-fetch');
 const { Client, GatewayIntentBits } = require('discord.js');
 
 // --- 啟動 Express (存活檢測用) ---
@@ -11,10 +11,6 @@ app.get('/', (req, res) => res.send('秦煥在線上～陪你貼貼(*´∀`)~♥
 app.listen(PORT, '0.0.0.0', () => {
     console.log(`✅ 伺服器在 ${PORT} 埠口啟動成功`);
 });
-
-// ❌ 拿掉 OpenAI 套件（因為我們改用 Google Gemini 的原生 REST API）
-// const { OpenAI } = require('openai');
-// const openai = new OpenAI({ ... })
 
 // --- 建立 Discord Client ---
 const client = new Client({
@@ -29,32 +25,9 @@ client.once('ready', () => {
     console.log(`🚀 秦煥上線囉～登入帳號：${client.user.tag}`);
 });
 
-// --- 最後登入 Discord ---
 client.login(process.env.DISCORD_BOT_TOKEN);
-async function fetchGeminiReply(promptText) {
-  const apiKey = process.env.GEMINI_API_KEY; // ✅ 確保你有在 .env 裡加這個
-// ✅ 請用這行（使用 v1 正式版 + 1.5-flash）
-const response = await fetch(`https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent?key=${process.env.GEMINI_API_KEY}`, {
 
-
-  const response = await fetch(endpoint, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      contents: [
-        { role: "user", parts: [{ text: promptText }] }
-      ]
-    }),
-  });
-
-  const result = await response.json();
-  return result.candidates?.[0]?.content?.parts?.[0]?.text?.trim() || "（沒有生成內容喔）";
-}
-
-
-// ✅ 格式化函數（維持不變）
+// ✅ 格式化函數
 function formatReply(text) {
   return `「${text}」`;
 }
@@ -96,9 +69,7 @@ const systemPrompt = `
 - 妳越沉淪，他越冷狠；妳不動心，他連看都不看。
 `.trim();
 
-
-
-// 🧼 表情保留型清洗器
+// 🧼 清洗器
 function sanitize(input) {
   return input
     .normalize("NFKD")
@@ -107,17 +78,14 @@ function sanitize(input) {
     .toLowerCase();
 }
 
-const chatHistory = [];
-const recentlyResponded = new Set();
-const mentionRegex = /秦煥/;
-
+// --- 監聽訊息 ---
 client.on("messageCreate", async (message) => {
   const raw = message.content ?? "";
   const fromBot = message.author.bot;
   const fromSelf = message.author.id === client.user.id;
   const mentionedMe = message.mentions.has(client.user) || raw.includes("@秦煥#1066");
 
-  // ✅ 處理引用訊息
+  // ✅ 1. 處理引用訊息
   if (fromBot && !fromSelf && /秦煥/.test(raw) && message.reference?.messageId) {
     try {
       const quotedMessage = await message.channel.messages.fetch(message.reference.messageId);
@@ -126,8 +94,8 @@ client.on("messageCreate", async (message) => {
       const latestMessage = sanitize(raw).slice(0, 100);
       const fullPrompt = `${systemPrompt}\n\n她說：「${latestMessage}」\n\n你會怎麼回？`;
 
-      // ✅ 請用這行（使用 v1 正式版 + 1.5-flash）
-const response = await fetch(`https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent?key=${process.env.GEMINI_API_KEY}`, {
+      // 使用 gemini-1.5-flash
+      const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${process.env.GEMINI_API_KEY}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -141,19 +109,19 @@ const response = await fetch(`https://generativelanguage.googleapis.com/v1/model
       });
 
       const result = await response.json();
-      console.log("🧠 Gemini 回傳結果（引用）：", JSON.stringify(result, null, 2));
       const aiReply = result.candidates?.[0]?.content?.parts?.[0]?.text?.trim();
+      
       if (aiReply) {
         message.reply(formatReply(aiReply));
       } else {
-        message.reply("「妳講得不夠誠懇。」");
+        console.log("Gemini 無回應或錯誤:", JSON.stringify(result)); // 印出錯誤方便除錯
       }
     } catch (err) {
       console.warn("⚠️ 引用處理錯誤：", err);
     }
   }
 
-  // ✅ 主邏輯：有人提及我，就回最新一句
+  // ✅ 2. 處理直接提及 (@秦煥)
   if (!mentionedMe) return;
 
   let content = raw
@@ -168,8 +136,8 @@ const response = await fetch(`https://generativelanguage.googleapis.com/v1/model
   const fullPrompt = `${systemPrompt}\n\n她說：「${latestMessage}」\n\n你會怎麼回？`;
 
   try {
-    // ✅ 請用這行（使用 v1 正式版 + 1.5-flash）
-const response = await fetch(`https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent?key=${process.env.GEMINI_API_KEY}`, {
+    // 使用 gemini-1.5-flash
+    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${process.env.GEMINI_API_KEY}`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -183,27 +151,22 @@ const response = await fetch(`https://generativelanguage.googleapis.com/v1/model
     });
 
     const result = await response.json();
-    console.log("🧠 Gemini 回傳結果（提及）：", JSON.stringify(result, null, 2));
     const aiReply = result.candidates?.[0]?.content?.parts?.[0]?.text?.trim();
+
     if (aiReply) {
       message.reply(formatReply(aiReply));
     } else {
-      message.reply("「妳講得不夠誠懇。」");
+       console.log("Gemini 無回應或錯誤:", JSON.stringify(result));
+       message.reply("「妳講得不夠誠懇。」");
     }
   } catch (err) {
     console.error("❌ Gemini 回覆錯誤：", err);
   }
 });
 
-
-// ✅ 補充：訊息刪除
+// ✅ 訊息刪除彩蛋
 client.on("messageDelete", (msg) => {
-  if (
-    !msg.partial &&
-    msg.content &&
-    typeof msg.content === "string" &&
-    msg.content.includes("秦煥")
-  ) {
+  if (!msg.partial && msg.content && typeof msg.content === "string" && msg.content.includes("秦煥")) {
     const deletedReplies = [
       "「刪了？呵……你以為我會沒看到？那你太晚了。」",
       "「訊息收回的那一瞬間，我就記下你怕什麼了。」"
@@ -213,18 +176,9 @@ client.on("messageDelete", (msg) => {
   }
 });
 
-// ✅ 補充：訊息編輯
+// ✅ 訊息編輯彩蛋
 client.on("messageUpdate", (oldMsg, newMsg) => {
-  if (
-    !oldMsg.partial &&
-    oldMsg.content &&
-    newMsg.content &&
-    typeof oldMsg.content === "string" &&
-    typeof newMsg.content === "string" &&
-    oldMsg.content !== newMsg.content &&
-    oldMsg.content.includes("秦煥") &&
-    newMsg.content.includes("秦煥")
-  ) {
+  if (!oldMsg.partial && oldMsg.content && newMsg.content && typeof oldMsg.content === "string" && typeof newMsg.content === "string" && oldMsg.content !== newMsg.content && oldMsg.content.includes("秦煥") && newMsg.content.includes("秦煥")) {
     const editedReplies = [
       "「改了就乾淨了？錯，一個字都逃不掉，我早就看穿你想說什麼。」",
       "「你編輯的不是字，是你試圖掩蓋的軟弱，對吧？」"
