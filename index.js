@@ -1,7 +1,7 @@
 // --- 環境變數與套件 ---
 require('dotenv').config();
 const express = require('express');
-const fetch = require('node-fetch');
+// const fetch = require('node-fetch'); // ❌ 移除這行，直接用 Node.js 內建的 fetch
 const { Client, GatewayIntentBits } = require('discord.js');
 
 // --- 啟動 Express (存活檢測用) ---
@@ -94,8 +94,8 @@ client.on("messageCreate", async (message) => {
       const latestMessage = sanitize(raw).slice(0, 100);
       const fullPrompt = `${systemPrompt}\n\n她說：「${latestMessage}」\n\n你會怎麼回？`;
 
-      // 🌟 使用 v1 正式版 API (最穩定)
-      const url = `https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent?key=${process.env.GEMINI_API_KEY}`;
+      // 🌟 改用 v1beta + gemini-1.5-flash-001 (指定具體版本)
+      const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-001:generateContent?key=${process.env.GEMINI_API_KEY}`;
       
       const response = await fetch(url, {
         method: "POST",
@@ -112,9 +112,8 @@ client.on("messageCreate", async (message) => {
 
       const result = await response.json();
       
-      // 除錯用：如果在日誌看到這行，代表你成功更新到最新版程式碼了！
       if (result.error) {
-          console.error("❌ Google API 報錯 (V1):", JSON.stringify(result, null, 2));
+          console.error("❌ Google API 報錯:", JSON.stringify(result, null, 2));
       }
 
       const aiReply = result.candidates?.[0]?.content?.parts?.[0]?.text?.trim();
@@ -142,8 +141,8 @@ client.on("messageCreate", async (message) => {
   const fullPrompt = `${systemPrompt}\n\n她說：「${latestMessage}」\n\n你會怎麼回？`;
 
   try {
-    // 🌟 使用 v1 正式版 API (最穩定)
-    const url = `https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent?key=${process.env.GEMINI_API_KEY}`;
+    // 🌟 改用 v1beta + gemini-1.5-flash-001 (指定具體版本)
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-001:generateContent?key=${process.env.GEMINI_API_KEY}`;
 
     const response = await fetch(url, {
       method: "POST",
@@ -161,7 +160,8 @@ client.on("messageCreate", async (message) => {
     const result = await response.json();
 
     if (result.error) {
-        console.error("❌ Google API 報錯 (V1):", JSON.stringify(result, null, 2));
+        console.error("❌ Google API 報錯:", JSON.stringify(result, null, 2));
+        // 如果還是錯，印出來我們才知道原因
     }
 
     const aiReply = result.candidates?.[0]?.content?.parts?.[0]?.text?.trim();
