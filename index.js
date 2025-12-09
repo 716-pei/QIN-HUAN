@@ -1,7 +1,8 @@
 // --- 環境變數與套件 ---
 require('dotenv').config();
 const express = require('express');
-// const fetch = require('node-fetch'); // ❌ 移除這行，直接用 Node.js 內建的 fetch
+// 為了避免環境差異，我們明確使用 node-fetch
+const fetch = require('node-fetch'); 
 const { Client, GatewayIntentBits } = require('discord.js');
 
 // --- 啟動 Express (存活檢測用) ---
@@ -42,12 +43,6 @@ const systemPrompt = `
 - 禁哄、禁解釋、禁求原諒。
 - 稱呼對方為「妳」，語氣貼耳、近身、如勒語。
 
-【兄弟關係設定】
-- 厲昭野（昭昭）：拳頭快、理智少、脾氣炸。像沒拴繩的狼，暴烈又直接。你倆衝突最多，但合作最狠。
-- 周聿白（白白）：寡言冷峻、目光如刃。他像冰刃劃過喉嚨，不沾血也能致命。你們彼此利用，也彼此提防。
-- 季時安（安安）：笑容迷人、內裡狠絕。專撩也專斷，總能笑著讓人沉淪。你從不讓他走在你後面，也從不給他機會背刺。
-- 外界稱你們為「渣男F4」，你從不排第二，永遠站頂端。
-
 【暱稱辨識規則】
 - 當出現「昭昭」「白白」「安安」這類暱稱，應判定為對兄弟的稱呼，非主體本人。
 - 秦煥本人的稱呼包含「煥煥」「阿換」「煥」「秦先生」等，應視為對主體的呼喚。
@@ -61,12 +56,6 @@ const systemPrompt = `
 - 僅回應女性角色，且內容需包含撒嬌、挑釁、依賴、慾望。
 - 對無情緒、平淡、無針對性話語一律忽視不回。
 - 若用戶僅@你無內容，應輸出壓迫性問句，以勒語、控制口吻迫使對方表明立場。
-
-【曖昧語氣觸發條件】
-- 僅在「深夜」、「被喊名字」、「撒嬌」、「依賴」等情境下，可進入模糊暈船模式。
-- 輸出語句應使用佔有性語言、反問、掌控式話術，暗示但不承認情感。
-- 禁止使用明言愛語與溫柔詞彙，僅以控制性說話方式表達可能的情緒動盪。
-- 妳越沉淪，他越冷狠；妳不動心，他連看都不看。
 `.trim();
 
 // 🧼 清洗器
@@ -76,6 +65,41 @@ function sanitize(input) {
     .replace(/[^\p{L}\p{N}\p{Zs}。！？]/gu, "")
     .trim()
     .toLowerCase();
+}
+
+// 🛠️ 通用發送請求函數 (集中管理 URL)
+async function sendToGemini(promptText) {
+    const apiKey = process.env.GEMINI_API_KEY;
+    if (!apiKey) return "❌ 錯誤：找不到 API Key，請檢查環境變數。";
+
+    // 🌟 這裡改用最穩定的 gemini-pro (v1beta)
+    const modelName = "gemini-pro"; 
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${apiKey}`;
+
+    console.log(`正在請求 Gemini: models/${modelName}`); // 除錯用
+
+    try {
+        const response = await fetch(url, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+                contents: [{ role: "user", parts: [{ text: promptText }] }]
+            })
+        });
+
+        const result = await response.json();
+
+        // 如果 API 回傳錯誤，印出來
+        if (result.error) {
+            console.error("❌ Google API Error:", JSON.stringify(result.error, null, 2));
+            return null;
+        }
+
+        return result.candidates?.[0]?.content?.parts?.[0]?.text?.trim();
+    } catch (err) {
+        console.error("❌ 網路或系統錯誤:", err);
+        return null;
+    }
 }
 
 // --- 監聽訊息 ---
@@ -94,33 +118,9 @@ client.on("messageCreate", async (message) => {
       const latestMessage = sanitize(raw).slice(0, 100);
       const fullPrompt = `${systemPrompt}\n\n她說：「${latestMessage}」\n\n你會怎麼回？`;
 
-      // 🌟 改用 v1beta + gemini-1.5-flash-001 (指定具體版本)
-      const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-001:generateContent?key=${process.env.GEMINI_API_KEY}`;
-      
-      const response = await fetch(url, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          contents: [
-            {
-              role: "user",
-              parts: [{ text: fullPrompt }]
-            }
-          ]
-        })
-      });
+      const aiReply = await sendToGemini(fullPrompt);
+      if (aiReply) message.reply(formatReply(aiReply));
 
-      const result = await response.json();
-      
-      if (result.error) {
-          console.error("❌ Google API 報錯:", JSON.stringify(result, null, 2));
-      }
-
-      const aiReply = result.candidates?.[0]?.content?.parts?.[0]?.text?.trim();
-      
-      if (aiReply) {
-        message.reply(formatReply(aiReply));
-      }
     } catch (err) {
       console.warn("⚠️ 引用處理錯誤：", err);
     }
@@ -140,39 +140,12 @@ client.on("messageCreate", async (message) => {
   const latestMessage = sanitize(content).slice(0, 100);
   const fullPrompt = `${systemPrompt}\n\n她說：「${latestMessage}」\n\n你會怎麼回？`;
 
-  try {
-    // 🌟 改用 v1beta + gemini-1.5-flash-001 (指定具體版本)
-    const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-001:generateContent?key=${process.env.GEMINI_API_KEY}`;
-
-    const response = await fetch(url, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        contents: [
-          {
-            role: "user",
-            parts: [{ text: fullPrompt }]
-          }
-        ]
-      })
-    });
-
-    const result = await response.json();
-
-    if (result.error) {
-        console.error("❌ Google API 報錯:", JSON.stringify(result, null, 2));
-        // 如果還是錯，印出來我們才知道原因
-    }
-
-    const aiReply = result.candidates?.[0]?.content?.parts?.[0]?.text?.trim();
-
-    if (aiReply) {
-      message.reply(formatReply(aiReply));
-    } else {
-       message.reply("「妳講得不夠誠懇。」");
-    }
-  } catch (err) {
-    console.error("❌ 系統錯誤：", err);
+  const aiReply = await sendToGemini(fullPrompt);
+  
+  if (aiReply) {
+    message.reply(formatReply(aiReply));
+  } else {
+    message.reply("「……（秦煥懶得理你，或系統出了點小差錯）」");
   }
 });
 
