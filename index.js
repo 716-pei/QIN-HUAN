@@ -1,9 +1,9 @@
 // --- 環境變數與套件 ---
 require('dotenv').config();
 const express = require('express');
-// 為了避免環境差異，我們明確使用 node-fetch
-const fetch = require('node-fetch'); 
 const { Client, GatewayIntentBits } = require('discord.js');
+// 🌟 引入 Google 官方 AI 套件
+const { GoogleGenerativeAI } = require("@google/generative-ai");
 
 // --- 啟動 Express (存活檢測用) ---
 const app = express();
@@ -12,6 +12,12 @@ app.get('/', (req, res) => res.send('秦煥在線上～陪你貼貼(*´∀`)~♥
 app.listen(PORT, '0.0.0.0', () => {
     console.log(`✅ 伺服器在 ${PORT} 埠口啟動成功`);
 });
+
+// --- 設定 Google Gemini ---
+// 這裡會自動處理版本和網址，不用我們手動操心
+const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
+// 使用最穩定的 1.5 Flash 模型
+const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
 
 // --- 建立 Discord Client ---
 const client = new Client({
@@ -67,37 +73,30 @@ function sanitize(input) {
     .toLowerCase();
 }
 
-// 🛠️ 通用發送請求函數 (集中管理 URL)
+// 🛠️ 通用發送請求函數 (使用 SDK)
 async function sendToGemini(promptText) {
-    const apiKey = process.env.GEMINI_API_KEY;
-    if (!apiKey) return "❌ 錯誤：找不到 API Key，請檢查環境變數。";
-
-    // 🌟 這裡改用最穩定的 gemini-pro (v1beta)
-    const modelName = "gemini-pro"; 
-    const url = `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${apiKey}`;
-
-    console.log(`正在請求 Gemini: models/${modelName}`); // 除錯用
-
     try {
-        const response = await fetch(url, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-                contents: [{ role: "user", parts: [{ text: promptText }] }]
-            })
+        // 設定生成參數 (降低被擋機率)
+        const chat = model.startChat({
+            history: [
+                {
+                    role: "user",
+                    parts: [{ text: systemPrompt }],
+                },
+                {
+                    role: "model",
+                    parts: [{ text: "哼，知道了。說吧，想玩什麼？" }],
+                },
+            ],
         });
 
-        const result = await response.json();
+        const result = await chat.sendMessage(promptText);
+        const response = await result.response;
+        const text = response.text();
+        return text.trim();
 
-        // 如果 API 回傳錯誤，印出來
-        if (result.error) {
-            console.error("❌ Google API Error:", JSON.stringify(result.error, null, 2));
-            return null;
-        }
-
-        return result.candidates?.[0]?.content?.parts?.[0]?.text?.trim();
     } catch (err) {
-        console.error("❌ 網路或系統錯誤:", err);
+        console.error("❌ Google SDK 報錯:", err);
         return null;
     }
 }
@@ -116,9 +115,9 @@ client.on("messageCreate", async (message) => {
       if (!quotedMessage || quotedMessage.author.bot) return;
 
       const latestMessage = sanitize(raw).slice(0, 100);
-      const fullPrompt = `${systemPrompt}\n\n她說：「${latestMessage}」\n\n你會怎麼回？`;
-
-      const aiReply = await sendToGemini(fullPrompt);
+      // 這裡直接傳送對話內容，因為 System Prompt 已經在 startChat 裡了
+      const aiReply = await sendToGemini(`她說：「${latestMessage}」\n\n你會怎麼回？`);
+      
       if (aiReply) message.reply(formatReply(aiReply));
 
     } catch (err) {
@@ -138,14 +137,12 @@ client.on("messageCreate", async (message) => {
   if (!content) content = "你在叫我嗎？";
 
   const latestMessage = sanitize(content).slice(0, 100);
-  const fullPrompt = `${systemPrompt}\n\n她說：「${latestMessage}」\n\n你會怎麼回？`;
-
-  const aiReply = await sendToGemini(fullPrompt);
+  const aiReply = await sendToGemini(`她說：「${latestMessage}」\n\n你會怎麼回？`);
   
   if (aiReply) {
     message.reply(formatReply(aiReply));
   } else {
-    message.reply("「……（秦煥懶得理你，或系統出了點小差錯）」");
+    message.reply("「……（秦煥眼神暗了暗，沒有說話）」");
   }
 });
 
